@@ -296,8 +296,12 @@ function pickLeastSeen(pool, n){
   });
   return shuffle(sorted.slice(0, n));
 }
-const pickNormal = n => pickLeastSeen(bank.filter(q=>qtype(q)!=='qa'), n);
+const choiceList = () => bank.filter(q=>qtype(q)!=='qa');
+const pickNormal = n => pickLeastSeen(choiceList(), n);
 const pickQA = n => pickLeastSeen(qaList(), Math.min(n, 5));   // 问答费时,每组最多5题
+const pickSequential = () => choiceList();                    // 按题库顺序, 全部选择题
+const pickMock = () => [...shuffle([...choiceList()]).slice(0,70),
+                        ...shuffle([...qaList()]).slice(0,30)];  // 模拟考: 70选择+30大题
 const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]} return a; };
 
 /* ================= 视图 ================= */
@@ -305,7 +309,7 @@ function go(v){ view = v; render(); window.scrollTo({top:0}); }
 function render(){
   $('pStreak').textContent = prog.streakDays;
   $('pXp').textContent = prog.xp;
-  const fn = {home, quiz:quizView, summary:summaryView, wrong:wrongView, fav:favView, import:importView, bank:bankView}[view];
+  const fn = {home, quiz:quizView, summary:summaryView, wrong:wrongView, fav:favView, weak:weakView, import:importView, bank:bankView}[view];
   $('app').innerHTML = fn();
   afterRender();
 }
@@ -332,7 +336,14 @@ function home(){
       ${pending?`<span class="cnt">${pending}</span>`:''}
       <div class="t">♻ 错题强化</div><div class="d">${pending?'错得越多出现越频繁，连对2次出本':'暂无待强化错题 🎉'}</div></button>
     <button class="action plain" onclick="startSession('qa')" ${qaList().length?'':'disabled style="opacity:.45"'}>
-      <div class="t">✍️ 问答抽查</div><div class="d">${qaList().length?qaList().length+' 道问答 · AI 联网搜索判卷':'导入问答资料后可用'}</div></button>
+      <div class="t">✍️ 问答抽查</div><div class="d">${qaList().length?qaList().length+' 道问答 · 逐小问作答 + AI 判卷':'导入问答资料后可用'}</div></button>
+    <button class="action plain" onclick="startSession('sequential')" ${choiceList().length?'':'disabled style="opacity:.45"'}>
+      <div class="t">📑 顺序练习</div><div class="d">${choiceList().length?'按题库顺序全刷 '+choiceList().length+' 道选择题':'导入选择题后可用'}</div></button>
+    <button class="action primary" onclick="startSession('mock')" ${bank.length?'':'disabled style="opacity:.45"'}
+      style="background:linear-gradient(135deg,#0EA5E9,#6366F1)">
+      <div class="t">📝 模拟考试</div><div class="d">随机 ${Math.min(70,choiceList().length)} 选择 + ${Math.min(30,qaList().length)} 大题问答</div></button>
+    <button class="action warn" onclick="go('weak')" ${wl.length?'':'disabled style="opacity:.45"'} style="${wl.length?'':''}">
+      <div class="t" style="color:var(--amber)">💥 薄弱突击</div><div class="d">${wl.length?wl.length+' 个薄弱点 · AI 知识点精讲':'做错题后自动归纳薄弱点'}</div></button>
     <button class="action plain" onclick="go('wrong')">
       <div class="t">📕 错题本</div><div class="d">${wl.length} 道错题 · ${wl.filter(q=>qMastered(q.id)).length} 道已掌握</div></button>
     <button class="action plain" onclick="go('fav')">
@@ -382,18 +393,41 @@ const greeting = () => { const h = new Date().getHours();
   return h<5?'夜深了，刷一组就睡':h<12?'早上好 ☀️':h<18?'下午好 🌤️':'晚上好 🌙'; };
 
 /* ================= 刷题 ================= */
-function startSession(mode){
+function startSession(mode, customQs){
   if(!bank.length){ alert('题库为空，请先导入题目（首页 → 📥 导入资料）或检查 data/bank.json 是否存在'); return; }
-  const qs = mode==='reinforce' ? pickReinforce(10) : mode==='fav' ? pickFav(10)
-           : mode==='qa' ? pickQA(5) : pickNormal(10);
+  const qs = customQs ? customQs
+           : mode==='reinforce' ? pickReinforce(10) : mode==='fav' ? pickFav(10)
+           : mode==='qa' ? pickQA(5) : mode==='sequential' ? pickSequential()
+           : mode==='mock' ? pickMock() : pickNormal(10);
   if(!qs.length){ alert(mode==='qa'?'暂无问答题，请先导入问答资料':'暂无可用题目'); return; }
+  // splitParts: 仅"问答抽查/知识点突击"逐小问作答; 模拟考按整道大题作答(大题并非子问题)
   session = {mode, qs, i:0, right:0, xp:0, combo:0, maxCombo:0, sel:new Set(),
-             done:false, newBadges:[], text:'', judging:false, ai:null};
+             done:false, newBadges:[], text:'', judging:false, ai:null,
+             splitParts: (mode==='qa' || mode==='weakqa'), startedAt: Date.now()};
+  initQA();
   go('quiz');
 }
+/* 进入一道问答题时重置逐小问状态 */
+function initQA(){
+  const s = session, q = s.qs[s.i];
+  s.partIdx = 0; s.partText = {}; s.partGrade = {}; s.partRefShown = false;
+  s.refSegs = null;
+}
+/* 把整道大题的参考答案按（1）（2）…拆成每小问一段 */
+function splitRef(text, n){
+  if(!text) return null;
+  const re = /[（(]\s*\d+\s*[）)]/g, idxs = []; let m;
+  while((m = re.exec(text))) idxs.push(m.index);
+  if(idxs.length < 2) return null;
+  const segs = [];
+  for(let i=0;i<idxs.length;i++)
+    segs.push(text.slice(idxs[i], i+1<idxs.length?idxs[i+1]:undefined).trim());
+  return segs;
+}
+const isSplitQA = (s,q) => s.splitParts && qtype(q)==='qa' && (q.parts||[]).length>1;
 function quizView(){
   const s = session, q = s.qs[s.i];
-  if(qtype(q) === 'qa') return qaQuizView(s, q);
+  if(qtype(q) === 'qa') return isSplitQA(s,q) ? qaSplitView(s,q) : qaQuizView(s, q);
   const opts = Object.entries(q.options);
   return `
   ${quizHead(s)}
@@ -425,7 +459,63 @@ function quizHead(s){
 }
 const nextBtn = s => `<button class="btn solid wide" onclick="nextQ()">${s.i+1 < s.qs.length ? '下一题 →' : '查看本组成绩 🏁'}</button>`;
 
-/* ---------- 问答题视图: 提交→先看参考答案→自选AI判卷 ---------- */
+/* ---------- 问答题(逐小问): 一次只答一个小问, 答完才出该小问答案 ---------- */
+function qaSplitView(s, q){
+  const parts = q.parts || [], n = parts.length, pi = s.partIdx;
+  const shown = s.partRefShown, graded = s.partGrade[pi] !== undefined;
+  // 优先用题库里逐小问对齐的答案; 没有(如AI生成的整段ref)则按(N)拆
+  const seg = (q.answers && q.answers[pi]) || (s.refSegs && s.refSegs[pi]) || s.refWhole || '';
+  const last = pi === n - 1;
+  return `
+  ${quizHead(s)}
+  <div class="card qcard">
+    <button class="starbtn ${isFav(q.id)?'on':''}" title="${isFav(q.id)?'取消收藏':'收藏这道题'}" onclick="toggleFav('${q.id}')">${isFav(q.id)?'★':'☆'}</button>
+    <span class="qtype qa">问答题 · 小问 ${pi+1}/${n}</span>
+    <div class="stem">${esc(q.stem)}</div>
+    <div class="parts"><div style="font-weight:800;color:var(--ink)">${esc(parts[pi])}</div></div>
+    <textarea class="qa-in" id="qaText" placeholder="回答本小问…"
+      oninput="session.partText[${pi}]=this.value" ${shown?'disabled':''}>${esc(s.partText[pi]||'')}</textarea>
+    ${!shown ? `
+      <button class="btn solid wide" onclick="showPartAnswer(false)">提交，看本小问答案 📖</button>
+      <button class="btn ghost wide" onclick="showPartAnswer(true)" style="margin-top:8px">不会，看答案</button>` : ''}
+    ${s.partLoading ? `<div class="judging"><span class="spin"></span>正在生成参考答案…</div>` : ''}
+    ${shown ? `<div class="exp ok"><div class="h okt">📖 第（${pi+1}）小问参考答案</div>
+      <div class="body" style="white-space:pre-wrap">${esc(seg || '（未能单独拆出本小问答案，下面是整题参考）\n'+(s.refWhole||''))}</div></div>` : ''}
+    ${shown && !graded ? `<div class="selfgrade">
+      <button class="btn okline" onclick="gradePart(true)">✓ 这问答对了</button>
+      <button class="btn noline" onclick="gradePart(false)">✗ 没答对</button></div>` : ''}
+    ${shown && graded ? `<div class="exp ${s.partGrade[pi]?'ok':'no'}"><div class="h ${s.partGrade[pi]?'okt':'not'}">${s.partGrade[pi]?'✓ 本小问记为答对':'✗ 本小问记为答错'}</div></div>
+      <button class="btn solid wide" onclick="nextPart()">${last?'完成本题 ✓':'下一小问 →'}</button>` : ''}
+  </div>`;
+}
+async function showPartAnswer(skip){
+  const s = session, q = s.qs[s.i];
+  if(skip) s.partText[s.partIdx] = '';
+  // 题库自带逐小问答案 → 直接显示, 无需联网
+  const hasLocal = q.answers && q.answers[s.partIdx];
+  if(!hasLocal && !s.refWhole){   // 整题参考答案只取一次, 然后按小问拆分
+    s.partLoading = true; render();
+    try{
+      const r = await (await fetch('/api/answer', {method:'POST', body:JSON.stringify({id:q.id})})).json();
+      if(r.ok){ s.refWhole = r.ref; s.refSegs = splitRef(r.ref, (q.parts||[]).length); }
+      else { s.refWhole = '（参考答案生成失败：'+(r.error||'')+'）'; }
+    }catch(e){ s.refWhole = '（参考答案获取失败：'+e+'）'; }
+    s.partLoading = false;
+  }
+  s.partRefShown = true; render();
+}
+function gradePart(ok){ session.partGrade[session.partIdx] = ok; render(); }
+function nextPart(){
+  const s = session, q = s.qs[s.i], n = (q.parts||[]).length;
+  if(s.partIdx < n - 1){ s.partIdx++; s.partRefShown = false; render(); }
+  else {   // 全部小问完成 → 整道大题按"全部小问答对才算对"计分
+    const allOk = q.parts.every((_,i)=>s.partGrade[i]);
+    s.text = q.parts.map((p,i)=>`${p} 我答:${s.partText[i]||'(空)'} [${s.partGrade[i]?'对':'错'}]`).join('\n');
+    finalize(allOk);
+  }
+}
+
+/* ---------- 问答题(整题): 提交→先看参考答案→自选AI判卷 ---------- */
 function qaQuizView(s, q){
   const ai = s.ai, ref = s.ref, busy = s.refLoading || s.judging;
   const canJudge = ref && !ai && !s.judging && !s.done && (s.text||'').trim();
@@ -543,7 +633,8 @@ function finalize(ok){
 function nextQ(){
   const s = session;
   if(s.i+1 < s.qs.length){ s.i++; s.sel = new Set(); s.done = false;
-    s.text = ''; s.judging = false; s.ai = null; s.ref = null; s.refLoading = false; render(); }
+    s.text = ''; s.judging = false; s.ai = null; s.ref = null; s.refLoading = false;
+    s.refWhole = null; s.refSegs = null; s.partLoading = false; initQA(); render(); }
   else {
     if(s.right === s.qs.length && s.qs.length >= 5) s.newBadges.push(...checkBadges(['ten']));
     s.newBadges.push(...checkBadges());
@@ -551,12 +642,17 @@ function nextQ(){
     if(s.right/s.qs.length >= .8 || s.newBadges.length) confetti();
   }
 }
+const MODE_NAME = {reinforce:'错题强化', fav:'收藏练习', qa:'问答抽查',
+  sequential:'顺序练习', mock:'模拟考试', weak:'薄弱突击', weakqa:'薄弱突击', normal:'常规练习'};
 function summaryView(){
   const s = session, acc = Math.round(s.right/s.qs.length*100);
+  const isMock = s.mode === 'mock';
+  const mins = s.startedAt ? Math.round((Date.now()-s.startedAt)/60000) : 0;
+  const pass = acc >= 60;
   return `<div class="card sum">
-    <div style="font-size:42px">${acc===100?'🏆':acc>=80?'🎉':acc>=60?'💪':'📖'}</div>
+    <div style="font-size:42px">${isMock?(pass?'🎓':'📕'):acc===100?'🏆':acc>=80?'🎉':acc>=60?'💪':'📖'}</div>
     <div class="big">${acc}%</div>
-    <div style="color:var(--ink2);font-weight:600">${s.mode==='reinforce'?'错题强化':s.mode==='fav'?'收藏练习':s.mode==='qa'?'问答抽查':'常规练习'} · ${acc===100?'完美一组！':acc>=80?'非常棒！':'错题已记入错题本'}</div>
+    <div style="color:var(--ink2);font-weight:600">${MODE_NAME[s.mode]||'练习'} · ${isMock?(pass?'达到及格线（60%）✓':'未及格，继续努力'):acc===100?'完美一组！':acc>=80?'非常棒！':'错题已记入错题本'}${isMock&&mins?` · 用时 ${mins} 分钟`:''}</div>
     <div class="row">
       <div class="cell"><div class="n" style="color:var(--green)">${s.right}</div><div class="l">答对</div></div>
       <div class="cell"><div class="n" style="color:var(--red)">${s.qs.length-s.right}</div><div class="l">答错</div></div>
@@ -616,6 +712,51 @@ function favView(){
   <a class="back" onclick="go('home')">← 返回首页</a>`;
 }
 
+/* ================= 薄弱点突击 ================= */
+let kpCache = {}, kpLoading = {};
+async function loadKP(id){
+  if(kpCache[id] || kpLoading[id]) return;
+  kpLoading[id] = true; render();
+  try{
+    const r = await (await fetch('/api/explain', {method:'POST', body:JSON.stringify({id})})).json();
+    kpCache[id] = r.ok ? r.kp : ('讲解生成失败：' + (r.error||''));
+  }catch(e){ kpCache[id] = '讲解获取失败：' + e; }
+  kpLoading[id] = false; render();
+}
+function weakView(){
+  const weak = wrongList().sort((a,b)=>qstat(b.id).wrong - qstat(a.id).wrong);
+  const wc = weak.filter(q=>qtype(q)!=='qa'), wq = weak.filter(q=>qtype(q)==='qa');
+  return `<h1>💥 薄弱点突击</h1>
+  <div class="sub">${weak.length?`你做错过的 ${weak.length} 个知识点（${wc.length} 选择 / ${wq.length} 问答），按错误次数排序。点「📚 知识点精讲」让 AI 给出标准讲解，彻底吃透。`:'还没有薄弱点——做错题后这里会自动归纳。'}</div>
+  ${weak.length?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
+    ${wc.length?`<button class="btn solid" onclick="startSession('weak', shuffle(wrongList().filter(q=>qtype(q)!=='qa')))">💥 突击选择题（${wc.length}）</button>`:''}
+    ${wq.length?`<button class="btn ghost" onclick="startSession('weakqa', shuffle(wrongList().filter(q=>qtype(q)==='qa')))">✍️ 突击问答题（${wq.length}）</button>`:''}
+  </div>`:''}
+  ${weak.length ? weak.map(q=>weakItem(q)).join('') : '<div class="card empty">🎉 暂无薄弱点，保持下去！</div>'}
+  <a class="back" onclick="go('home')">← 返回首页</a>`;
+}
+function weakItem(q){
+  const st = qstat(q.id), kp = kpCache[q.id], loading = kpLoading[q.id];
+  return `<div class="card witem">
+    <div class="top" onclick="toggleW(this)">
+      <span class="tag err">错 ${st.wrong} 次</span>
+      <span class="stem2">${esc(q.stem)}</span>
+      <button class="star-sm ${isFav(q.id)?'on':''}" onclick="event.stopPropagation();toggleFav('${q.id}')">${isFav(q.id)?'★':'☆'}</button>
+      <span style="color:var(--ink3)">▾</span></div>
+    <div class="wdetail" style="display:none">
+      ${qtype(q)==='qa'
+        ? `${(q.parts||[]).map(p=>`<div>${esc(p)}</div>`).join('')}${q.ref?`<div style="margin-top:8px;white-space:pre-wrap"><b>参考答案：</b>${esc(q.ref)}</div>`:''}`
+        : `${Object.entries(q.options).map(([k,v])=>`<div>${q.answer.includes(k)?'<b>✓ '+k+'. '+esc(v)+'</b>':k+'. '+esc(v)}</div>`).join('')}
+           <div style="margin-top:8px"><b>解析：</b>${esc(q.explanation||'无')}</div>`}
+      <div style="margin-top:12px">
+        ${kp ? `<div class="exp ok" style="margin-top:0"><div class="h okt">📚 知识点精讲</div>
+                 <div class="body" style="white-space:pre-wrap">${esc(kp)}</div></div>`
+          : loading ? `<div class="judging"><span class="spin"></span>AI 正在联网整理这个知识点的标准讲解…</div>`
+          : `<button class="btn ghost" onclick="loadKP('${q.id}')">📚 AI 知识点精讲（${cfg[cfg.provider].label}）</button>`}
+      </div>
+    </div></div>`;
+}
+
 /* ================= 题库汇总 ================= */
 /* 题型识别: 单选 / 多选 / 判断(两个"正确/错误"型选项) / 问答 */
 const isJudge = q => { if(qtype(q) !== 'choice') return false;
@@ -629,6 +770,7 @@ const TYPE_ICONS = {single:'🔘', multi:'☑️', judge:'⚖️', qa:'✍️'};
 let bankUI = {kw:'', open:{}, sel:{}};
 let _chapters = [];   // 当前渲染的章节缓存(供 onclick 按索引引用, 避免文件名引号问题)   // kw=检索词 open[章节]=展开 sel[章节]=Set(已勾选题型)
 
+const natCmp = (a,b) => a.localeCompare(b, 'zh-Hans-CN', {numeric:true});
 function chapterList(){
   const map = new Map();
   for(const q of bank){
@@ -636,7 +778,8 @@ function chapterList(){
     if(!map.has(src)) map.set(src, []);
     map.get(src).push(q);
   }
-  return [...map.entries()].map(([src, qs]) => ({src, qs}));
+  return [...map.entries()].map(([src, qs]) => ({src, qs}))
+                           .sort((x,y)=>natCmp(x.src, y.src));   // 章节按文件名自然序
 }
 const qMatch = (q, kw) => {
   if(!kw) return true;
@@ -780,6 +923,7 @@ function importView(){
 }
 async function doImport(files){
   const list = $('flist');
+  files = [...files].sort((a,b)=>natCmp(a.name, b.name));   // 按文件名顺序导入, 题库即有序
   for(const f of files){
     const row = document.createElement('div');
     row.className = 'card fitem'; row.textContent = '⏳ ' + f.name + ' 解析中…';

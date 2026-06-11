@@ -63,7 +63,15 @@ def parse_paragraphs(paras, source=''):
             continue
         m = REF_RE.match(line)
         if m and cur and cur['type'] == 'qa':
-            cur['ref'] = (cur.get('ref', '') + m.group(1)).strip()
+            ans = m.group(1).strip()
+            # 把"答："对齐到对应小问: 第N个答案配第N个小问, 供逐小问作答
+            if cur['parts'] and len(cur['answers']) < len(cur['parts']):
+                cur['answers'].append(ans)
+            elif cur['answers']:
+                cur['answers'][-1] = (cur['answers'][-1] + ans).strip()
+            else:
+                cur['answers'].append(ans)   # 无小问的整题答案
+            cur['ref'] = (cur.get('ref', '') + ans).strip()
             continue
         m = OPT_RE.match(line)
         if m and cur and cur['type'] == 'choice':
@@ -84,14 +92,16 @@ def parse_paragraphs(paras, source=''):
             if qa:
                 stem = re.sub(r'^问[：:]\s*', '', stem)
             cur = {'type': 'qa' if qa else 'choice', 'stem': stem, 'options': {},
-                   'answer': None, 'explanation': '', 'parts': [], 'ref': '',
-                   'source': source}
+                   'answer': None, 'explanation': '', 'parts': [], 'answers': [],
+                   'ref': '', 'source': source}
             continue
         # 题干/解析的折行续行
         if cur:
             if cur['type'] == 'qa':
                 if cur.get('ref'):
                     cur['ref'] += line
+                    if cur['answers']:
+                        cur['answers'][-1] += line
                 elif cur['parts']:
                     cur['parts'][-1] += line
                 else:
@@ -106,7 +116,7 @@ def parse_paragraphs(paras, source=''):
     for q in questions:
         if q['type'] == 'choice':
             q['multi'] = len(q['answer']) > 1
-            q.pop('parts', None); q.pop('ref', None)
+            q.pop('parts', None); q.pop('ref', None); q.pop('answers', None)
         else:
             q['answer'] = []
             q['multi'] = False
@@ -127,8 +137,26 @@ def parse_docx(path):
     return parse_paragraphs(paras, source=os.path.basename(path))
 
 
+def _natkey(s):
+    """文件名自然排序键: 让 1,2,...,10 正确排序而非 1,10,2"""
+    return [int(t) if t.isdigit() else t.lower()
+            for t in re.split(r'(\d+)', s or '')]
+
+
+def sort_bank_by_source(bank):
+    """题库按 来源文件名(自然序) → 文件内原始顺序 稳定排序。
+    原始顺序用每题首次出现的位置保留。"""
+    for i, q in enumerate(bank):
+        q.setdefault('_ord', i)
+    bank.sort(key=lambda q: (_natkey(q.get('source', '')), q.get('_ord', 0)))
+    for q in bank:
+        q.pop('_ord', None)
+    return bank
+
+
 def merge_into_bank(bank, new_qs):
-    """按题干去重合并; 新题覆盖同 id 旧题(资料更新场景)。返回(新增,更新)"""
+    """按题干去重合并; 新题覆盖同 id 旧题(资料更新场景)。返回(新增,更新)
+    合并后整库按文件名自然序排列, 修复批量导入乱序问题。"""
     idx = {q['id']: i for i, q in enumerate(bank)}
     added = updated = 0
     for q in new_qs:
@@ -138,6 +166,7 @@ def merge_into_bank(bank, new_qs):
         else:
             bank.append(q)
             added += 1
+    sort_bank_by_source(bank)
     return added, updated
 
 

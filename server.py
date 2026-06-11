@@ -115,6 +115,36 @@ def gen_answer(stem, parts):
     return llm_chat(prompt), len(snippets)
 
 
+def gen_explain(q):
+    """针对一道题生成"标准知识点讲解": 联网搜索 + LLM, 讲清考点而非只给答案"""
+    stem = q.get('stem', '')
+    parts = q.get('parts', [])
+    snippets, ctx = _search_ctx(stem, parts)
+    if q.get('type') == 'qa':
+        qline = stem + ('\n' + '\n'.join(parts) if parts else '')
+        ansline = ('参考答案：' + q['ref']) if q.get('ref') else ''
+    else:
+        opts = '\n'.join(f"{k}. {v}" for k, v in (q.get('options') or {}).items())
+        qline = stem + '\n' + opts
+        ansline = '正确答案：' + ''.join(q.get('answer') or []) + \
+                  (('\n原解析：' + q['explanation']) if q.get('explanation') else '')
+    prompt = f"""你是一级建造师机电实务的资深讲师。下面这道题考生反复做错，请围绕它做"知识点精讲"，帮考生彻底吃透这个考点。
+
+【题目】
+{qline}
+{ansline}
+
+【联网检索资料】
+{ctx or '(联网搜索不可用,凭你的专业知识讲解)'}
+
+请按以下结构输出纯文本（不要markdown符号），简明扼要：
+一、核心考点：这道题考的是什么知识点。
+二、必记要点：相关规范的关键数值/条件/分类（分条列出）。
+三、易错提醒：常见混淆点和这道题的陷阱。
+四、记忆口诀或方法：帮助记住的小技巧。"""
+    return llm_chat(prompt), len(snippets)
+
+
 def ai_judge(stem, parts, user_answer, ref=''):
     snippets, ctx = _search_ctx(stem, parts)
     q_text = stem + ('\n' + '\n'.join(parts) if parts else '')
@@ -246,6 +276,27 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(out)
             except Exception as e:
                 return self._json({'ok': False, 'error': f'{type(e).__name__}: {e}'})
+        if self.path == '/api/explain':
+            # 知识点精讲: body = {"id": "xxx"}; 结果缓存进 bank 的 q.kp
+            d = json.loads(body)
+            with LOCK:
+                bank = load(BANK, [])
+                q = next((x for x in bank if x['id'] == d.get('id')), None)
+            if not q:
+                return self._json({'ok': False, 'error': '题目不存在'})
+            if q.get('kp'):
+                return self._json({'ok': True, 'kp': q['kp'], 'cached': True})
+            try:
+                kp, searched = gen_explain(q)
+            except Exception as e:
+                return self._json({'ok': False, 'error': f'{type(e).__name__}: {e}'})
+            with LOCK:
+                bank = load(BANK, [])
+                for x in bank:
+                    if x['id'] == q['id']:
+                        x['kp'] = kp
+                save(BANK, bank)
+            return self._json({'ok': True, 'kp': kp, 'cached': False, 'searched': searched})
         if self.path == '/api/delete':
             # 批量删除题目: body = {"ids": ["xxx", ...]}
             d = json.loads(body)
