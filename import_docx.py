@@ -6,8 +6,8 @@ import re, json, sys, hashlib
 
 Q_RE = re.compile(r'^(\d{1,3})[.、．]\s*(.+)')
 OPT_RE = re.compile(r'^([A-H])[.、．]\s*(.+)')
-ANS_RE = re.compile(r'^【答案】\s*([A-H]+)')
-EXP_RE = re.compile(r'^【解析】\s*(.*)')
+ANS_RE = re.compile(r'^(?:(\d{1,3})[.、．]?)?\s*【答案】\s*([A-H]+)')
+EXP_RE = re.compile(r'^(?:(\d{1,3})[.、．]?)?\s*【解析】\s*(.*)')
 PART_RE = re.compile(r'^[（(]\d{1,2}[）)]\s*(.+)')   # 问答题小问 （1）...
 REF_RE = re.compile(r'^答[：:]\s*(.*)')              # 问答题参考答案(可选)
 
@@ -19,10 +19,10 @@ def norm_key(text):
 
 
 def _flush(questions, cur):
-    """选择题需有选项+答案; 问答题有题干即可"""
+    """收集所有题目; 选择题无答案先保留, 末尾一起补答案"""
     if not cur:
         return
-    if cur['type'] == 'choice' and cur['options'] and cur['answer']:
+    if cur['type'] == 'choice' and cur['options']:
         questions.append(cur)
     elif cur['type'] == 'qa' and cur['stem']:
         questions.append(cur)
@@ -35,12 +35,31 @@ def parse_paragraphs(paras, source=''):
         if not line:
             continue
         m = ANS_RE.match(line)
-        if m and cur:
-            cur['answer'] = sorted(set(m.group(1)))
+        if m:
+            qnum = m.group(1)
+            # 编号答案块(末尾集中): 先flush待处理题; 内联答案(无编号): 保持cur
+            if cur and qnum and cur not in questions:
+                _flush(questions, cur)
+                cur = None
+            if qnum:
+                i = int(qnum) - 1
+                if 0 <= i < len(questions):
+                    cur = questions[i]
+            if cur:
+                cur['answer'] = sorted(set(m.group(2)))
             continue
         m = EXP_RE.match(line)
-        if m and cur:
-            cur['explanation'] = (cur.get('explanation', '') + m.group(1)).strip()
+        if m:
+            qnum = m.group(1)
+            if cur and qnum and cur not in questions:
+                _flush(questions, cur)
+                cur = None
+            if qnum:
+                i = int(qnum) - 1
+                if 0 <= i < len(questions):
+                    cur = questions[i]
+            if cur:
+                cur['explanation'] = (cur.get('explanation', '') + m.group(2)).strip()
             continue
         m = REF_RE.match(line)
         if m and cur and cur['type'] == 'qa':
@@ -79,7 +98,9 @@ def parse_paragraphs(paras, source=''):
                 cur['explanation'] = (cur.get('explanation', '') + line).strip()
             elif not cur['options']:
                 cur['stem'] += line
-    _flush(questions, cur)
+    _flush(questions, cur) if cur not in questions else None
+    # 过滤掉最终仍无答案的选择题
+    questions = [q for q in questions if not (q['type'] == 'choice' and q['answer'] is None)]
     for q in questions:
         if q['type'] == 'choice':
             q['multi'] = len(q['answer']) > 1
