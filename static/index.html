@@ -437,9 +437,9 @@ function qaQuizView(s, q){
     <div class="stem">${esc(q.stem)}</div>
     ${(q.parts||[]).length ? `<div class="parts">${q.parts.map(p=>`<div>${esc(p)}</div>`).join('')}</div>` : ''}
     <textarea class="qa-in" id="qaText" placeholder="凭记忆作答，可分点写（1）（2）（3）…"
-      oninput="session.text=this.value" ${busy||ref?'disabled':''}>${esc(s.text||'')}</textarea>
+      oninput="session.text=this.value;var b=document.getElementById('submitBtn');if(b)b.disabled=!this.value.trim()" ${busy||ref?'disabled':''}>${esc(s.text||'')}</textarea>
     ${!ref && !s.refLoading ? `
-      <button class="btn solid wide" onclick="showAnswer(false)" ${(s.text||'').trim()?'':'disabled'}>提交，看参考答案 📖</button>
+      <button id="submitBtn" class="btn solid wide" onclick="showAnswer(false)" ${(s.text||'').trim()?'':'disabled'}>提交，看参考答案 📖</button>
       <button class="btn ghost wide" onclick="showAnswer(true)" style="margin-top:8px">不会，直接看答案</button>` : ''}
     ${s.refLoading ? `<div class="judging"><span class="spin"></span>正在联网搜索并生成参考答案…（生成一次后会缓存，下次秒出）</div>` : ''}
     ${ref ? refCard(ref) : ''}
