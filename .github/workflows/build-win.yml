@@ -11,7 +11,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pyinstaller python-docx
-      - run: pyinstaller --onefile --name ShuaTiYing --hidden-import docx --add-data "static;static" server.py
+      - run: pyinstaller --onefile --name ShuaTiYing --hidden-import docx --hidden-import lxml --hidden-import lxml.etree --add-data "static;static" server.py
       - name: package zip
         shell: pwsh
         run: |
