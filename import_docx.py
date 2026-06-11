@@ -177,12 +177,12 @@ if __name__ == '__main__':
         out = sys.argv[sys.argv.index('-o') + 1]
         args.remove(out)
     try:
-        bank = json.load(open(out))
+        bank = json.load(open(out, encoding='utf-8'))
     except Exception:
         bank = []
     for f in args:
         qs = parse_docx(f)
         a, u = merge_into_bank(bank, qs)
         print(f'{f}: 解析 {len(qs)} 题, 新增 {a}, 更新 {u}')
-    json.dump(bank, open(out, 'w'), ensure_ascii=False, indent=1)
+    json.dump(bank, open(out, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print(f'题库共 {len(bank)} 题 -> {out}')

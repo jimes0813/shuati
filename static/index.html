@@ -202,10 +202,8 @@ async function setProvider(p){
   cfg.provider = p; render();
   await fetch('/api/config', {method:'POST', body:JSON.stringify({provider:p})});
 }
-function toggleAiCfg(){
-  const el = $('aiCfg');
-  el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
+function toggleAiCfg(){ cfgOpen = !cfgOpen; render(); }
+let cfgOpen = false;
 async function saveAiCfg(){
   const payload = {};
   for(const p of ['cloud','local']){
@@ -214,10 +212,26 @@ async function saveAiCfg(){
   }
   const r = await (await fetch('/api/config', {method:'POST', body:JSON.stringify(payload)})).json();
   cfg = await (await fetch('/api/config')).json();
-  $('cfgMsg').textContent = r.ok ? '已保存 ✓' : '保存失败';
-  for(const p of ['cloud','local']) $(`cfg-${p}-key`).value = '';
+  cfgOpen = true;                 // 保存后保持面板展开, 让用户看到"已保存"状态并能测试
+  render();                       // 重渲染: 已保存的 key 会显示掩码徽章
+  const m = $('cfgMsg'); if(m){ m.textContent = r.ok ? '已保存 ✓（可点测试连接确认）' : '保存失败'; }
   loadAiStatus();
-  setTimeout(()=>{ const m=$('cfgMsg'); if(m) m.textContent=''; }, 2500);
+  setTimeout(()=>{ const e=$('cfgMsg'); if(e) e.textContent=''; }, 3500);
+}
+async function clearKey(p){
+  await fetch('/api/config', {method:'POST', body:JSON.stringify({[p]:{api_key:'__clear__'}})});
+  cfg = await (await fetch('/api/config')).json();
+  cfgOpen = true; render(); loadAiStatus();
+}
+async function testAi(p){
+  const el = $(`test-${p}`);
+  if(el){ el.style.color = 'var(--ink2)'; el.textContent = '测试中…'; }
+  try{
+    const r = await (await fetch('/api/testai?provider=' + p)).json();
+    if(!el) return;
+    if(r.ok){ el.style.color = 'var(--green)'; el.textContent = `✓ 连接正常，模型回复「${r.reply||'(空)'}」`; }
+    else { el.style.color = 'var(--red)'; el.textContent = '✗ ' + (r.error||'连接失败') + (r.info?'  ['+r.info+']':''); }
+  }catch(e){ if(el){ el.style.color = 'var(--red)'; el.textContent = '✗ ' + e; } }
 }
 let saveTimer = null;
 function persist(){
@@ -371,19 +385,27 @@ function home(){
     <button class="badge" onclick="toggleAiCfg()">✏️ 配置</button>
     <span id="provHint" style="font-size:12.5px;color:var(--ink3);align-self:center"></span>
   </div>
-  <div class="card" id="aiCfg" style="display:none;padding:18px;margin-top:10px">
+  <div class="card" id="aiCfg" style="display:${cfgOpen?'block':'none'};padding:18px;margin-top:10px">
     ${['cloud','local'].map(p=>`
-      <div style="font-weight:800;margin:${p==='local'?'16px':'0'} 0 8px;font-size:14px">${p==='cloud'?'☁️':'💻'} ${esc(cfg[p].label||p)}</div>
+      <div style="font-weight:800;margin:${p==='local'?'18px':'0'} 0 8px;font-size:14px">${p==='cloud'?'☁️':'💻'} ${esc(cfg[p].label||p)}</div>
       <div class="cfg-grid">
         <input class="cfg-in" id="cfg-${p}-base" value="${esc(cfg[p].base||'')}" placeholder="Base URL（OpenAI 兼容，如 https://api.deepseek.com/v1）">
-        <input class="cfg-in" id="cfg-${p}-model" value="${esc(cfg[p].model||'')}" placeholder="模型名">
+        <input class="cfg-in" id="cfg-${p}-model" value="${esc(cfg[p].model||'')}" placeholder="模型名（如 deepseek-chat）">
+        ${cfg[p].has_key ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--green);font-weight:700;padding:2px">
+          🔑 API Key 已保存：${esc(cfg[p].key_hint||'')}
+          <button class="btn ghost" style="padding:4px 10px;font-size:12px;color:var(--red)" onclick="clearKey('${p}')">清除</button></div>` : ''}
         <input class="cfg-in" id="cfg-${p}-key" type="password" autocomplete="off"
-          placeholder="${cfg[p].has_key ? 'API Key 已保存 '+cfg[p].key_hint+'（留空不变，输 __clear__ 清除）' : (cfg[p].fallback ? cfg[p].fallback+'（填写则覆盖）' : 'API Key（无鉴权可留空）')}">
+          placeholder="${cfg[p].has_key ? '如需更换 API Key 在此输入新的（留空保持不变）' : (cfg[p].fallback ? cfg[p].fallback+'（填写则覆盖）' : '在此粘贴 API Key（无鉴权可留空）')}">
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
+        <button class="btn ghost" style="padding:8px 14px;font-size:13px" onclick="testAi('${p}')">🔌 测试连接</button>
+        <span id="test-${p}" style="font-size:12.5px;font-weight:600"></span>
       </div>`).join('')}
-    <div style="display:flex;gap:12px;align-items:center;margin-top:14px">
+    <div style="display:flex;gap:12px;align-items:center;margin-top:16px">
       <button class="btn solid" onclick="saveAiCfg()">保存配置</button>
       <span id="cfgMsg" style="font-size:13px;color:var(--green);font-weight:700"></span>
     </div>
+    <div class="hint" style="margin-top:12px">填好 Base URL、模型名、API Key 后点「保存配置」，再点「🔌 测试连接」确认能通。云端 DeepSeek 在 <b>platform.deepseek.com</b> 申请 Key。</div>
   </div>
   <div class="section-t">🏅 成就 <span style="font-weight:600;color:var(--ink3);font-size:13px">${prog.badges.length}/${BADGES.length}</span></div>
   <div class="badges">${BADGES.map(([id,name,desc])=>

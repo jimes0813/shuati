@@ -49,7 +49,7 @@ def _provider_key(p):
 
 def _bridge_key():
     try:
-        env = open(os.path.expanduser('~/.codex/codex-bridge/.env')).read()
+        env = open(os.path.expanduser('~/.codex/codex-bridge/.env'), encoding='utf-8').read()
         m = re.search(r'^PROXY_AUTH_KEY=(.+)$', env, re.M)
         return m.group(1).strip() if m else ''
     except Exception:
@@ -69,13 +69,55 @@ def llm_chat(prompt, timeout=180):
 
 
 def provider_alive(p):
+    key = _provider_key(p)
+    # 先试 /models(便宜); 鉴权失败直接判离线; 不支持/models的服务再退到最小chat测试
     try:
         req = urllib.request.Request(p['base'] + '/models',
-                                     headers={'Authorization': 'Bearer ' + _provider_key(p)})
-        _NOPROXY.open(req, timeout=3).read()
-        return True
+                                     headers={'Authorization': 'Bearer ' + key})
+        return 200 <= _NOPROXY.open(req, timeout=6).getcode() < 300
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return False
+    except Exception:
+        pass
+    try:
+        body = json.dumps({'model': p['model'], 'max_tokens': 1,
+                           'messages': [{'role': 'user', 'content': 'hi'}]}).encode()
+        req = urllib.request.Request(p['base'] + '/chat/completions', data=body, headers={
+            'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key})
+        return 200 <= _NOPROXY.open(req, timeout=8).getcode() < 300
     except Exception:
         return False
+
+
+def test_provider(which):
+    """真实连接测试: 发一条极小请求, 返回成功回显或详细错误(供用户诊断'连不通')"""
+    conf = get_conf()
+    p = conf.get(which)
+    if not p:
+        return {'ok': False, 'error': '未知的模型类型'}
+    key = _provider_key(p)
+    info = f"接口 {p['base']}  模型 {p['model']}  鉴权 {'有Key' if key != 'none' else '无Key'}"
+    try:
+        body = json.dumps({'model': p['model'], 'max_tokens': 5,
+                           'messages': [{'role': 'user', 'content': '回复两个字：正常'}]}).encode()
+        req = urllib.request.Request(p['base'] + '/chat/completions', data=body, headers={
+            'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key})
+        with _NOPROXY.open(req, timeout=20) as r:
+            reply = json.load(r)['choices'][0]['message'].get('content', '')
+        return {'ok': True, 'info': info, 'reply': (reply or '').strip()[:50]}
+    except urllib.error.HTTPError as e:
+        detail = ''
+        try:
+            detail = e.read().decode('utf-8', 'ignore')[:300]
+        except Exception:
+            pass
+        hint = '（API Key 不对或未填）' if e.code in (401, 403) else \
+               '（模型名不对）' if e.code == 404 else ''
+        return {'ok': False, 'info': info, 'error': f'HTTP {e.code} {hint} {detail}'}
+    except Exception as e:
+        return {'ok': False, 'info': info,
+                'error': f'{type(e).__name__}: {e}（接口地址不通或网络问题）'}
 
 
 def web_search(query, n=4):
@@ -170,7 +212,7 @@ def ai_judge(stem, parts, user_answer, ref=''):
 
 def load(path, default):
     try:
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:   # 必须指定utf-8: Windows中文默认GBK会读崩UTF-8文件
             return json.load(f)
     except Exception:
         return default
@@ -178,7 +220,7 @@ def load(path, default):
 
 def save(path, obj):
     tmp = path + '.tmp'
-    with open(tmp, 'w') as f:
+    with open(tmp, 'w', encoding='utf-8') as f:    # 同上, 否则Windows下写GBK导致跨机/再读出错
         json.dump(obj, f, ensure_ascii=False)
     os.replace(tmp, path)
 
@@ -217,6 +259,10 @@ class Handler(SimpleHTTPRequestHandler):
             c = get_conf()
             return self._json({'cloud': provider_alive(c['cloud']),
                                'local': provider_alive(c['local'])})
+        if self.path.startswith('/api/testai'):
+            q = urllib.parse.urlparse(self.path).query
+            which = urllib.parse.parse_qs(q).get('provider', ['cloud'])[0]
+            return self._json(test_provider(which))
         super().do_GET()
 
     def do_POST(self):
