@@ -1,5 +1,9 @@
-name: build-win
-on: workflow_dispatch
+name: Build Windows EXE
+on: 
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-win.yml'
 jobs:
   build:
     runs-on: windows-latest
