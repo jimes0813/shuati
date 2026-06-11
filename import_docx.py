@@ -70,8 +70,10 @@ def parse_paragraphs(paras, source=''):
             cur['options'][m.group(1)] = m.group(2).strip()
             continue
         m = PART_RE.match(line)
-        if m and cur and cur['type'] == 'qa' and not cur.get('ref'):
-            cur['parts'].append(line)
+        if m and cur and cur['type'] == 'qa':
+            # 子问题与答案交替出现; 答句内的编号如"（2）进行xxx"不含"？"则算续行
+            if not cur.get('ref') or '？' in line or '?' in line:
+                cur['parts'].append(line)
             continue
         m = Q_RE.match(line)
         # 题干以数字开头(如标题"6.11五百问")不是新题, 防误切
