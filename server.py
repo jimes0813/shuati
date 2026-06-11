@@ -269,9 +269,24 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    import socket
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8787
-    url = f'http://127.0.0.1:{port}'
-    print(f'刷题营已启动: {url}  (关闭本窗口即退出)')
-    if FROZEN:   # Windows EXE 启动后自动打开浏览器
-        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    ThreadingHTTPServer(('127.0.0.1', port), Handler).serve_forever()
+    host = '0.0.0.0'   # 监听所有网卡，手机可访问
+    # 获取本机局域网 IP
+    lan_ip = '127.0.0.1'
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('10.255.255.255', 1))
+        lan_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+    local_url = f'http://127.0.0.1:{port}'
+    lan_url = f'http://{lan_ip}:{port}'
+    print(f'刷题营已启动:')
+    print(f'  本机访问: {local_url}')
+    print(f'  手机访问: {lan_url}  (同一 WiFi 下)')
+    print(f'  关闭本窗口即退出')
+    if FROZEN:
+        threading.Timer(1.0, lambda: webbrowser.open(local_url)).start()
+    ThreadingHTTPServer((host, port), Handler).serve_forever()
