@@ -10,7 +10,9 @@ import import_docx
 
 FROZEN = getattr(sys, 'frozen', False)          # PyInstaller 打包标志
 ROOT = os.path.dirname(sys.executable) if FROZEN else os.path.dirname(os.path.abspath(__file__))
-STATIC = os.path.join(getattr(sys, '_MEIPASS', ROOT), 'static')   # 静态文件打进exe
+# 静态文件: 优先用 exe/脚本同目录下的 static 文件夹(方便只更新前端), 否则用打进exe的
+_EXT_STATIC = os.path.join(ROOT, 'static')
+STATIC = _EXT_STATIC if os.path.isdir(_EXT_STATIC) else os.path.join(getattr(sys, '_MEIPASS', ROOT), 'static')
 BANK = os.path.join(ROOT, 'data', 'bank.json')
 PROG = os.path.join(ROOT, 'data', 'progress.json')
 os.makedirs(os.path.join(ROOT, 'data'), exist_ok=True)
@@ -244,6 +246,19 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(out)
             except Exception as e:
                 return self._json({'ok': False, 'error': f'{type(e).__name__}: {e}'})
+        if self.path == '/api/delete':
+            # 批量删除题目: body = {"ids": ["xxx", ...]}
+            d = json.loads(body)
+            ids = set(d.get('ids') or [])
+            if not ids:
+                return self._json({'ok': False, 'error': '未指定要删除的题目'}, 400)
+            with LOCK:
+                bank = load(BANK, [])
+                before = len(bank)
+                bank = [q for q in bank if q.get('id') not in ids]
+                save(BANK, bank)
+            return self._json({'ok': True, 'deleted': before - len(bank),
+                               'total': len(bank)})
         if self.path == '/api/import':
             # 前端逐个文件以原始字节上传, 文件名在 X-Filename(URL编码)
             from urllib.parse import unquote

@@ -305,7 +305,7 @@ function go(v){ view = v; render(); window.scrollTo({top:0}); }
 function render(){
   $('pStreak').textContent = prog.streakDays;
   $('pXp').textContent = prog.xp;
-  const fn = {home, quiz:quizView, summary:summaryView, wrong:wrongView, fav:favView, import:importView}[view];
+  const fn = {home, quiz:quizView, summary:summaryView, wrong:wrongView, fav:favView, import:importView, bank:bankView}[view];
   $('app').innerHTML = fn();
   afterRender();
 }
@@ -337,6 +337,8 @@ function home(){
       <div class="t">📕 错题本</div><div class="d">${wl.length} 道错题 · ${wl.filter(q=>qMastered(q.id)).length} 道已掌握</div></button>
     <button class="action plain" onclick="go('fav')">
       <div class="t">⭐ 收藏夹</div><div class="d">${prog.favs.length ? prog.favs.length+' 道收藏 · 随时回炉' : '答题时点 ☆ 收藏没把握的题'}</div></button>
+    <button class="action plain" onclick="go('bank')">
+      <div class="t">🗂 题库汇总</div><div class="d">${chapterList().length} 个章节 · 按导入文件分章 · 可检索/删除</div></button>
     <button class="action plain" onclick="go('import')">
       <div class="t">📥 导入资料</div><div class="d">上传 docx 自动解析进题库</div></button>
   </div>
@@ -614,6 +616,150 @@ function favView(){
   <a class="back" onclick="go('home')">← 返回首页</a>`;
 }
 
+/* ================= 题库汇总 ================= */
+/* 题型识别: 单选 / 多选 / 判断(两个"正确/错误"型选项) / 问答 */
+const isJudge = q => { if(qtype(q) !== 'choice') return false;
+  const v = Object.values(q.options || {});
+  return v.length === 2 && v.every(x => /^(正确|错误|对|错|是|否|√|×|对的|错的)$/.test((x||'').trim())); };
+const typeKey = q => qtype(q) === 'qa' ? 'qa' : isJudge(q) ? 'judge' : q.multi ? 'multi' : 'single';
+const TYPE_ORDER = ['single','multi','judge','qa'];
+const TYPE_NAMES = {single:'单选题', multi:'多选题', judge:'判断题', qa:'问答题'};
+const TYPE_ICONS = {single:'🔘', multi:'☑️', judge:'⚖️', qa:'✍️'};
+
+let bankUI = {kw:'', open:{}, sel:{}};
+let _chapters = [];   // 当前渲染的章节缓存(供 onclick 按索引引用, 避免文件名引号问题)   // kw=检索词 open[章节]=展开 sel[章节]=Set(已勾选题型)
+
+function chapterList(){
+  const map = new Map();
+  for(const q of bank){
+    const src = q.source || '未知来源';
+    if(!map.has(src)) map.set(src, []);
+    map.get(src).push(q);
+  }
+  return [...map.entries()].map(([src, qs]) => ({src, qs}));
+}
+const qMatch = (q, kw) => {
+  if(!kw) return true;
+  const hay = [q.stem, q.explanation||'', ...(q.parts||[]),
+               ...Object.entries(q.options||{}).map(([k,v])=>k+'.'+v)].join('\n').toLowerCase();
+  return kw.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+};
+function chSel(src){ return bankUI.sel[src] || (bankUI.sel[src] = new Set()); }
+
+function bankView(){
+  const kw = bankUI.kw.trim();
+  const chapters = chapterList().map(c => ({...c, hit: c.qs.filter(q => qMatch(q, kw))}))
+                                .filter(c => !kw || c.hit.length);
+  const totalHit = chapters.reduce((s,c)=>s+c.hit.length, 0);
+  _chapters = chapters;
+  return `<h1>🗂 题库汇总</h1>
+  <div class="sub">共 ${bank.length} 题 · ${chapterList().length} 个章节（每个导入文件为一章）。${kw?`检索到 <b>${totalHit}</b> 题。`:'勾选题型可批量删除。'}</div>
+  <input class="cfg-in" id="bankKw" value="${esc(bankUI.kw)}" placeholder="🔍 检索题干 / 选项 / 解析，空格分隔多个关键词"
+    oninput="bankUI.kw=this.value;renderBankKeepFocus()" style="margin-bottom:16px;padding:13px 16px;font-size:14.5px">
+  ${chapters.length ? chapters.map((c,i) => chapterCard(c, kw, i)).join('')
+    : `<div class="card empty">${kw ? '😶 没有匹配的题目，换个关键词试试' : '题库为空，先去 📥 导入资料'}</div>`}
+  <a class="back" onclick="go('home')">← 返回首页</a>`;
+}
+
+function chapterCard(c, kw, i){
+  const {src, qs, hit} = c;
+  const open = kw ? true : !!bankUI.open[src];   // 检索时自动展开
+  const sel = chSel(src);
+  const cnt = {};
+  for(const q of qs) cnt[typeKey(q)] = (cnt[typeKey(q)]||0) + 1;
+  const selN = qs.filter(q => sel.has(typeKey(q))).length;
+  const shown = open ? (kw ? hit : qs) : [];
+  return `<div class="card" style="margin-bottom:14px;overflow:hidden">
+    <div style="padding:16px 18px;display:flex;align-items:center;gap:10px;cursor:pointer"
+      onclick="bankToggleOpen(${i})">
+      <span style="font-size:20px">📁</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:15px;word-break:break-all">${esc(src)}</div>
+        <div style="font-size:12.5px;color:var(--ink2)">${qs.length} 题${kw?` · 命中 ${hit.length} 题`:''}</div>
+      </div>
+      <button class="btn ghost" style="padding:8px 14px;font-size:13px;color:var(--red)"
+        onclick="event.stopPropagation();delChapter(${i})">🗑 删除整章</button>
+      <span style="color:var(--ink3)">${open?'▴':'▾'}</span>
+    </div>
+    <div style="padding:0 18px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      ${TYPE_ORDER.filter(t=>cnt[t]).map(t => `
+        <button class="badge prov ${sel.has(t)?'on':''}" style="padding:7px 12px;font-size:12.5px"
+          onclick="toggleTypeSel(${i},'${t}')">
+          ${sel.has(t)?'✅':TYPE_ICONS[t]} ${TYPE_NAMES[t]} <b>${cnt[t]}</b></button>`).join('')}
+      <button class="btn ghost" style="padding:7px 14px;font-size:12.5px;color:var(--red);${selN?'':'opacity:.4;pointer-events:none'}"
+        onclick="delSelectedTypes(${i})">🗑 删除选中题型（${selN} 题）</button>
+    </div>
+    ${shown.length ? `<div style="padding:0 14px 14px">${shown.map(q => bankQItem(q)).join('')}</div>` : ''}
+  </div>`;
+}
+
+function bankQItem(q){
+  const t = typeKey(q), st = prog.q[q.id];
+  const stat = st && st.seen ? `刷 ${st.seen} 次 · 对 ${st.right} 错 ${st.wrong}` : '未刷过';
+  return `<div class="card witem" style="box-shadow:none;margin-bottom:8px">
+    <div class="top" onclick="toggleW(this)">
+      <span class="tag ${t==='qa'?'ok':'err'}" style="background:var(--accent-soft);color:var(--accent);border:1px solid var(--line)">${TYPE_NAMES[t]}</span>
+      <span class="stem2">${esc(q.stem)}</span>
+      <button class="star-sm" title="删除这道题" style="color:var(--ink3)"
+        onclick="event.stopPropagation();delOne('${q.id}')">🗑</button>
+      <span style="color:var(--ink3)">▾</span></div>
+    <div class="wdetail" style="display:none">
+      ${qtype(q)==='qa' ? `${(q.parts||[]).map(p=>`<div>${esc(p)}</div>`).join('')}
+        ${q.ref?`<div style="margin-top:8px;white-space:pre-wrap"><b>参考答案：</b>${esc(q.ref)}</div>`:''}`
+      : `${Object.entries(q.options).map(([k,v])=>`<div>${q.answer.includes(k)?'<b>✓ '+k+'. '+esc(v)+'</b>':k+'. '+esc(v)}</div>`).join('')}
+        <div style="margin-top:8px"><b>解析：</b>${esc(q.explanation||'无')}</div>`}
+      <div style="margin-top:6px;color:var(--ink3)">${stat} · 来源：${esc(q.source||'未知')}</div>
+    </div></div>`;
+}
+
+/* 检索框输入后保持焦点不丢 */
+function renderBankKeepFocus(){
+  const pos = $('bankKw').selectionStart;
+  render();
+  const el = $('bankKw');
+  if(el){ el.focus(); el.setSelectionRange(pos, pos); }
+}
+function bankToggleOpen(i){
+  const src = _chapters[i].src;
+  bankUI.open[src] = !bankUI.open[src];
+  render();
+}
+function toggleTypeSel(i, t){
+  const s = chSel(_chapters[i].src);
+  s.has(t) ? s.delete(t) : s.add(t);
+  render();
+}
+function delChapter(i){
+  const src = _chapters[i].src;
+  const ids = bank.filter(q => (q.source||'未知来源') === src).map(q => q.id);
+  return doDelete(ids, `整章「${src}」`);
+}
+function delSelectedTypes(i){
+  const src = _chapters[i].src;
+  const sel = chSel(src);
+  const ids = bank.filter(q => (q.source||'未知来源') === src && sel.has(typeKey(q))).map(q => q.id);
+  const names = TYPE_ORDER.filter(t=>sel.has(t)).map(t=>TYPE_NAMES[t]).join('、');
+  return doDelete(ids, `「${src}」中的 ${names}`);
+}
+function delOne(id){
+  const q = bank.find(x => x.id === id);
+  return doDelete([id], `这道题（${(q?q.stem:'').slice(0,20)}…）`);
+}
+async function doDelete(ids, label){
+  if(!ids.length) return;
+  if(!confirm(`确定删除 ${label} 吗？\n共 ${ids.length} 题，相关刷题记录一并清除，删除后不可恢复。`)) return;
+  try{
+    const r = await (await fetch('/api/delete', {method:'POST', body:JSON.stringify({ids})})).json();
+    if(!r.ok){ alert('删除失败：' + (r.error||'未知错误')); return; }
+    const dead = new Set(ids);
+    bank = bank.filter(q => !dead.has(q.id));
+    for(const id of ids) delete prog.q[id];                 // 清掉刷题记录
+    prog.favs = (prog.favs||[]).filter(id => !dead.has(id)); // 清掉收藏
+    bankUI.sel = {};
+    persist(); render();
+  }catch(e){ alert('删除失败：' + e); }
+}
+
 /* ================= 导入 ================= */
 function importView(){
   return `<h1>📥 导入资料</h1>
@@ -628,7 +774,8 @@ function importView(){
   <div class="hint"><b>支持的格式</b>（和你的"答案文档"一样即可）：<br>
   1. 题干以「数字.」开头；选项以「A.」「B.」…开头（有 E 选项自动按答案判断单/多选）<br>
   2. 答案行写「【答案】C」或「【答案】ABCD」；解析行写「【解析】…」<br>
-  3. 只发"题目文档"没有【答案】的题会被跳过——请导入带答案的版本</div>
+  3. 只发"题目文档"没有【答案】的题会被跳过——请导入带答案的版本<br>
+  4. 每个导入的文件会作为一个独立章节，可在「🗂 题库汇总」中按章节检索、按题型批量删除</div>
   <a class="back" onclick="go('home')">← 返回首页</a>`;
 }
 async function doImport(files){
