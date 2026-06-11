@@ -1,0 +1,4 @@
+__pycache__/
+data/progress.json
+data/config.json
+*.log

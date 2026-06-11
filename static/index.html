@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>刷题营 · StudyCamp</title>
+<style>
+:root{
+  --bg:#FAFAF9; --card:#FFFFFF; --ink:#1C1917; --ink2:#57534E; --ink3:#A8A29E;
+  --line:#E7E5E4; --accent:#4F46E5; --accent2:#7C3AED; --accent-soft:#EEF2FF;
+  --green:#16A34A; --green-soft:#F0FDF4; --green-line:#BBF7D0;
+  --red:#DC2626; --red-soft:#FEF2F2; --red-line:#FECACA;
+  --amber:#D97706; --amber-soft:#FFFBEB;
+  --r:16px; --shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,-apple-system,"SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;border:none;background:none}
+.wrap{max-width:760px;margin:0 auto;padding:0 20px 80px}
+/* ---------- topbar ---------- */
+.topbar{position:sticky;top:0;z-index:10;background:rgba(250,250,249,.85);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line)}
+.topbar-in{max-width:760px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:10px}
+.logo{font-weight:800;font-size:18px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px;cursor:pointer}
+.logo .dot{width:28px;height:28px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:grid;place-items:center;color:#fff;font-size:15px}
+.pills{margin-left:auto;display:flex;gap:8px}
+.pill{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:99px;font-size:13px;font-weight:700;
+  background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
+.pill.streak{color:var(--amber)} .pill.xp{color:var(--accent)}
+/* ---------- cards / common ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+h1{font-size:26px;letter-spacing:-.03em;margin:28px 0 4px}
+.sub{color:var(--ink2);font-size:14.5px;margin-bottom:22px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:560px){.grid4{grid-template-columns:repeat(2,1fr)}}
+.stat{padding:16px;text-align:left}
+.stat .n{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.stat .l{font-size:12.5px;color:var(--ink2);margin-top:2px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+@media(max-width:560px){.actions{grid-template-columns:1fr}}
+.action{padding:20px;border-radius:var(--r);text-align:left;transition:transform .12s,box-shadow .12s;
+  border:1px solid var(--line);box-shadow:var(--shadow);position:relative;overflow:hidden}
+.action:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(0,0,0,.09)}
+.action:active{transform:translateY(0)}
+.action .t{font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px}
+.action .d{font-size:13.5px;margin-top:4px;opacity:.85}
+.action.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none}
+.action.warn{background:#fff}
+.action.warn .t{color:var(--red)}
+.action.plain{background:#fff}
+.action .cnt{position:absolute;top:14px;right:16px;font-size:12px;font-weight:800;padding:3px 9px;border-radius:99px;
+  background:var(--red-soft);color:var(--red);border:1px solid var(--red-line)}
+.section-t{font-size:15px;font-weight:800;margin:26px 0 10px;display:flex;align-items:center;gap:8px}
+/* ---------- level ring ---------- */
+.level-card{display:flex;align-items:center;gap:18px;padding:18px;margin-top:14px}
+.ring{position:relative;width:74px;height:74px;flex:none}
+.ring svg{transform:rotate(-90deg)}
+.ring .mid{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:17px}
+.badges{display:flex;flex-wrap:wrap;gap:8px}
+.badge{display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:12px;background:var(--card);
+  border:1px solid var(--line);font-size:13px;font-weight:700;box-shadow:var(--shadow)}
+.badge.locked{opacity:.4;filter:grayscale(1)}
+.badge.prov{cursor:pointer;transition:border-color .12s,background .12s}
+.badge.prov.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.dot-st{width:8px;height:8px;border-radius:50%;background:var(--ink3);flex:none}
+.dot-st.up{background:var(--green)} .dot-st.down{background:var(--red)}
+.cfg-grid{display:grid;gap:8px}
+.cfg-in{padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:13.5px;width:100%;background:#fff}
+.cfg-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+/* ---------- quiz ---------- */
+.quiz-head{display:flex;align-items:center;gap:14px;margin:22px 0 18px}
+.qbar{flex:1;height:10px;border-radius:99px;background:var(--line);overflow:hidden}
+.qbar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:width .35s cubic-bezier(.22,1,.36,1)}
+.quit{color:var(--ink3);font-size:13px;font-weight:700}
+.combo{font-size:13px;font-weight:800;color:var(--amber);min-width:52px;text-align:right}
+.qcard{padding:24px;position:relative}
+.starbtn{position:absolute;top:16px;right:16px;font-size:24px;line-height:1;color:#D6D3D1;transition:transform .15s,color .15s}
+.starbtn.on{color:#F59E0B}
+.starbtn:hover{transform:scale(1.2)}
+.star-sm{font-size:18px;line-height:1;color:#D6D3D1;flex:none}
+.star-sm.on{color:#F59E0B}
+.qtype{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.04em;padding:4px 10px;border-radius:99px;
+  background:var(--accent-soft);color:var(--accent);margin-bottom:12px}
+.qtype.multi{background:var(--amber-soft);color:var(--amber)}
+.qtype.qa{background:#ECFEFF;color:#0E7490}
+.parts{margin-top:10px;display:flex;flex-direction:column;gap:6px;font-size:15px;color:var(--ink2)}
+textarea.qa-in{width:100%;min-height:130px;margin-top:16px;padding:14px 16px;border:1.5px solid var(--line);
+  border-radius:14px;font:inherit;font-size:15px;resize:vertical;background:#fff;color:var(--ink)}
+textarea.qa-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.judging{display:flex;align-items:center;gap:10px;margin-top:16px;padding:16px;border-radius:14px;
+  background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:14px}
+.spin{width:18px;height:18px;border:3px solid var(--accent-soft);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.exp.part{background:var(--amber-soft);border:1px solid #FDE68A}
+.exp .h.partt{color:var(--amber)}
+.selfgrade{display:flex;gap:10px;margin-top:14px}
+.selfgrade .btn{flex:1}
+.btn.okline{border:1.5px solid var(--green-line);color:var(--green);background:var(--green-soft)}
+.btn.noline{border:1.5px solid var(--red-line);color:var(--red);background:var(--red-soft)}
+.btn.suggest{box-shadow:0 0 0 3px rgba(79,70,229,.25)}
+.stem{font-size:17.5px;font-weight:700;letter-spacing:-.01em}
+.opts{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.opt{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:14px;border:1.5px solid var(--line);
+  background:#fff;text-align:left;font-size:15px;transition:border-color .12s,background .12s,transform .06s;width:100%}
+.opt:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
+.opt:active:not(:disabled){transform:scale(.99)}
+.opt .k{flex:none;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px;font-weight:800;
+  background:var(--bg);border:1px solid var(--line)}
+.opt.sel{border-color:var(--accent);background:var(--accent-soft)}
+.opt.sel .k{background:var(--accent);border-color:var(--accent);color:#fff}
+.opt.right{border-color:var(--green);background:var(--green-soft)}
+.opt.right .k{background:var(--green);border-color:var(--green);color:#fff}
+.opt.wrong{border-color:var(--red);background:var(--red-soft)}
+.opt.wrong .k{background:var(--red);border-color:var(--red);color:#fff}
+.opt:disabled{cursor:default;color:var(--ink)}
+.exp{margin-top:16px;padding:16px;border-radius:14px;font-size:14px;animation:slidein .25s ease}
+.exp.ok{background:var(--green-soft);border:1px solid var(--green-line)}
+.exp.no{background:var(--red-soft);border:1px solid var(--red-line)}
+.exp .h{font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.exp .h.okt{color:var(--green)} .exp .h.not{color:var(--red)}
+.exp .ans{font-weight:700;margin-bottom:6px}
+.exp .body{color:var(--ink2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:13px 22px;border-radius:13px;
+  font-weight:800;font-size:15px;transition:transform .1s,opacity .15s}
+.btn:active{transform:scale(.98)}
+.btn.solid{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 4px 14px rgba(79,70,229,.35)}
+.btn.ghost{background:#fff;border:1.5px solid var(--line)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.wide{width:100%;margin-top:16px}
+.xp-float{position:fixed;font-weight:800;color:var(--accent);font-size:18px;pointer-events:none;z-index:99;
+  animation:floatup 1s ease forwards}
+@keyframes floatup{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-46px)}}
+@keyframes slidein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* ---------- summary ---------- */
+.sum{padding:34px 24px;text-align:center;margin-top:26px}
+.sum .big{font-size:40px;font-weight:800;letter-spacing:-.03em}
+.sum .row{display:flex;justify-content:center;gap:26px;margin:18px 0}
+.sum .cell .n{font-size:21px;font-weight:800}
+.sum .cell .l{font-size:12.5px;color:var(--ink2)}
+.newbadge{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:99px;margin:4px;
+  background:var(--amber-soft);border:1px solid #FDE68A;color:var(--amber);font-weight:800;font-size:14px;
+  animation:slidein .4s ease}
+/* ---------- wrong book ---------- */
+.witem{padding:16px 18px;margin-bottom:10px}
+.witem .top{display:flex;align-items:center;gap:10px;cursor:pointer}
+.witem .stem2{flex:1;font-size:14.5px;font-weight:700}
+.tag{flex:none;font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:99px}
+.tag.err{background:var(--red-soft);color:var(--red);border:1px solid var(--red-line)}
+.tag.ok{background:var(--green-soft);color:var(--green);border:1px solid var(--green-line)}
+.wdetail{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);font-size:13.5px;color:var(--ink2)}
+.wdetail b{color:var(--ink)}
+/* ---------- import ---------- */
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:44px 20px;text-align:center;color:var(--ink2);
+  transition:border-color .15s,background .15s;cursor:pointer;background:#fff}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop .big-ico{font-size:34px;margin-bottom:8px}
+.flist{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.fitem{display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:13.5px}
+.fitem .ok{color:var(--green);font-weight:700}.fitem .err{color:var(--red);font-weight:700}
+.hint{font-size:13px;color:var(--ink3);margin-top:14px;line-height:1.7}
+.back{color:var(--accent);font-weight:700;font-size:14px;margin-top:24px;display:inline-block}
+.empty{padding:44px;text-align:center;color:var(--ink3)}
+.confetti{position:fixed;width:10px;height:10px;z-index:999;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="logo" onclick="go('home')"><span class="dot">🎯</span>刷题营</div>
+  <div class="pills">
+    <div class="pill streak">🔥 <span id="pStreak">0</span> 天</div>
+    <div class="pill xp">⚡ <span id="pXp">0</span> XP</div>
+  </div>
+</div></div>
+<div class="wrap" id="app"></div>
+
+<script>
+/* ================= 状态 ================= */
+let bank = [], prog = null, view = 'home', session = null;
+let cfg = {provider:'cloud', cloud:{label:'云端 DeepSeek'}, local:{label:'本地 Qwen'}};
+const $ = id => document.getElementById(id);
+const todayStr = () => new Date().toISOString().slice(0,10);
+
+const defaultProg = () => ({ xp:0, streakDays:0, lastActive:'', badges:[],
+  totalAnswered:0, totalCorrect:0, daily:{}, q:{}, favs:[] });
+
+async function boot(){
+  bank = await (await fetch('/api/bank')).json();
+  let p = await (await fetch('/api/progress')).json();
+  prog = Object.keys(p).length ? p : defaultProg();
+  prog.favs = prog.favs || [];   // 兼容旧进度
+  try{ cfg = await (await fetch('/api/config')).json(); }catch(e){}
+  render();
+}
+async function setProvider(p){
+  cfg.provider = p; render();
+  await fetch('/api/config', {method:'POST', body:JSON.stringify({provider:p})});
+}
+function toggleAiCfg(){
+  const el = $('aiCfg');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+async function saveAiCfg(){
+  const payload = {};
+  for(const p of ['cloud','local']){
+    payload[p] = {base: $(`cfg-${p}-base`).value, model: $(`cfg-${p}-model`).value,
+                  api_key: $(`cfg-${p}-key`).value};
+  }
+  const r = await (await fetch('/api/config', {method:'POST', body:JSON.stringify(payload)})).json();
+  cfg = await (await fetch('/api/config')).json();
+  $('cfgMsg').textContent = r.ok ? '已保存 ✓' : '保存失败';
+  for(const p of ['cloud','local']) $(`cfg-${p}-key`).value = '';
+  loadAiStatus();
+  setTimeout(()=>{ const m=$('cfgMsg'); if(m) m.textContent=''; }, 2500);
+}
+let saveTimer = null;
+function persist(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>fetch('/api/progress',{method:'POST',body:JSON.stringify(prog)}), 400);
+}
+function qstat(id){ return prog.q[id] || (prog.q[id] = {seen:0,right:0,wrong:0,streak:0}); }
+
+/* ================= 奖励体系 ================= */
+const LV_XP = 200;
+const level = () => Math.floor(prog.xp / LV_XP) + 1;
+const lvProgress = () => (prog.xp % LV_XP) / LV_XP;
+const BADGES = [
+  ['first',   '🌱 初出茅庐', '答对第一题',        p => p.totalCorrect >= 1],
+  ['ten',     '🎯 十发十中', '单组全对',          () => false],
+  ['combo5',  '🔥 五连击',   '连续答对5题',        () => false],
+  ['combo10', '⚡ 十连击',   '连续答对10题',       () => false],
+  ['fifty',   '💪 五十题斩', '累计作答50题',       p => p.totalAnswered >= 50],
+  ['hundred', '🏆 百题斩',   '累计作答100题',      p => p.totalAnswered >= 100],
+  ['streak3', '📅 三日坚持', '连续打卡3天',        p => p.streakDays >= 3],
+  ['streak7', '🗓️ 七日老兵', '连续打卡7天',        p => p.streakDays >= 7],
+  ['clear',   '🧹 错题清零', '错题本全部掌握',     () => wrongList().length>0 && wrongList().every(q=>qMastered(q.id)) ],
+  ['lv5',     '👑 五级学者', '达到5级',           () => level() >= 5],
+  ['collect10','📌 收藏家',  '收藏10道题',        p => (p.favs||[]).length >= 10],
+];
+function checkBadges(extra=[]){
+  const got = [];
+  for(const [id,name,,fn] of BADGES){
+    if(prog.badges.includes(id)) continue;
+    if(extra.includes(id) || fn(prog)){ prog.badges.push(id); got.push(name); }
+  }
+  return got;
+}
+function touchStreak(){
+  const t = todayStr();
+  if(prog.lastActive === t) return;
+  const y = new Date(Date.now()-864e5).toISOString().slice(0,10);
+  prog.streakDays = (prog.lastActive === y) ? prog.streakDays+1 : 1;
+  prog.lastActive = t;
+}
+
+/* ================= 错题逻辑 ================= */
+const qMastered = id => { const s = prog.q[id]; return s && s.wrong>0 && s.streak>=2; };
+function wrongList(){ return bank.filter(q => prog.q[q.id] && prog.q[q.id].wrong>0); }
+function reviewPool(){ return wrongList().filter(q => !qMastered(q.id)); }
+
+/* ================= 收藏 ================= */
+const isFav = id => prog.favs.includes(id);
+function toggleFav(id){
+  const i = prog.favs.indexOf(id);
+  i >= 0 ? prog.favs.splice(i, 1) : prog.favs.push(id);
+  checkBadges(); persist(); render();
+}
+function favList(){ return bank.filter(q => isFav(q.id)); }
+function pickFav(n){ return shuffle([...favList()]).slice(0, n); }
+
+const qtype = q => q.type || 'choice';
+function qaList(){ return bank.filter(q => qtype(q) === 'qa'); }
+
+/* 错题加权抽样: 错得越多越常出现 */
+function pickReinforce(n){
+  let pool = reviewPool().map(q => ({q, w: 1 + qstat(q.id).wrong}));
+  const out = [];
+  while(pool.length && out.length < n){
+    let total = pool.reduce((s,x)=>s+x.w, 0), r = Math.random()*total, i = 0;
+    while((r -= pool[i].w) > 0) i++;
+    out.push(pool[i].q); pool.splice(i,1);
+  }
+  return out;
+}
+/* 常规抽样: 未刷过优先, 其次刷得少的 */
+function pickLeastSeen(pool, n){
+  const sorted = [...pool].sort((a,b)=>{
+    const sa = (prog.q[a.id]||{}).seen||0, sb = (prog.q[b.id]||{}).seen||0;
+    return sa - sb || Math.random() - .5;
+  });
+  return shuffle(sorted.slice(0, n));
+}
+const pickNormal = n => pickLeastSeen(bank.filter(q=>qtype(q)!=='qa'), n);
+const pickQA = n => pickLeastSeen(qaList(), Math.min(n, 5));   // 问答费时,每组最多5题
+const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]} return a; };
+
+/* ================= 视图 ================= */
+function go(v){ view = v; render(); window.scrollTo({top:0}); }
+function render(){
+  $('pStreak').textContent = prog.streakDays;
+  $('pXp').textContent = prog.xp;
+  const fn = {home, quiz:quizView, summary:summaryView, wrong:wrongView, fav:favView, import:importView}[view];
+  $('app').innerHTML = fn();
+  afterRender();
+}
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+function home(){
+  const wl = wrongList(), pending = reviewPool().length;
+  const acc = prog.totalAnswered ? Math.round(prog.totalCorrect/prog.totalAnswered*100) : 0;
+  const lv = level(), pct = Math.round(lvProgress()*100);
+  const circ = 2*Math.PI*32;
+  return `
+  <h1>${greeting()}</h1>
+  <div class="sub">今天也是稳步上岸的一天。题库 ${bank.length} 题已就绪。</div>
+  <div class="grid4">
+    <div class="card stat"><div class="n">${bank.length}</div><div class="l">题库总题数</div></div>
+    <div class="card stat"><div class="n">${prog.totalAnswered}</div><div class="l">累计作答</div></div>
+    <div class="card stat"><div class="n">${acc}%</div><div class="l">总正确率</div></div>
+    <div class="card stat"><div class="n" style="color:${pending?'var(--red)':'var(--green)'}">${pending}</div><div class="l">待强化错题</div></div>
+  </div>
+  <div class="actions">
+    <button class="action primary" onclick="startSession('normal')">
+      <div class="t">▶ 刷选择题</div><div class="d">每组 10 题 · 优先未刷过的题</div></button>
+    <button class="action warn" onclick="startSession('reinforce')" ${pending?'':'disabled style="opacity:.45"'}>
+      ${pending?`<span class="cnt">${pending}</span>`:''}
+      <div class="t">♻ 错题强化</div><div class="d">${pending?'错得越多出现越频繁，连对2次出本':'暂无待强化错题 🎉'}</div></button>
+    <button class="action plain" onclick="startSession('qa')" ${qaList().length?'':'disabled style="opacity:.45"'}>
+      <div class="t">✍️ 问答抽查</div><div class="d">${qaList().length?qaList().length+' 道问答 · AI 联网搜索判卷':'导入问答资料后可用'}</div></button>
+    <button class="action plain" onclick="go('wrong')">
+      <div class="t">📕 错题本</div><div class="d">${wl.length} 道错题 · ${wl.filter(q=>qMastered(q.id)).length} 道已掌握</div></button>
+    <button class="action plain" onclick="go('fav')">
+      <div class="t">⭐ 收藏夹</div><div class="d">${prog.favs.length ? prog.favs.length+' 道收藏 · 随时回炉' : '答题时点 ☆ 收藏没把握的题'}</div></button>
+    <button class="action plain" onclick="go('import')">
+      <div class="t">📥 导入资料</div><div class="d">上传 docx 自动解析进题库</div></button>
+  </div>
+  <div class="card level-card">
+    <div class="ring">
+      <svg width="74" height="74"><circle cx="37" cy="37" r="32" fill="none" stroke="var(--line)" stroke-width="7"/>
+      <circle cx="37" cy="37" r="32" fill="none" stroke="url(#g)" stroke-width="7" stroke-linecap="round"
+        stroke-dasharray="${circ}" stroke-dashoffset="${circ*(1-lvProgress())}"/>
+      <defs><linearGradient id="g"><stop offset="0%" stop-color="#4F46E5"/><stop offset="100%" stop-color="#7C3AED"/></linearGradient></defs></svg>
+      <div class="mid">Lv${lv}</div>
+    </div>
+    <div><div style="font-weight:800">等级进度 ${pct}%</div>
+      <div style="font-size:13px;color:var(--ink2)">再获 ${LV_XP - prog.xp % LV_XP} XP 升到 Lv${lv+1} · 答对 +10 XP，多选 +15，连击翻倍</div></div>
+  </div>
+  <div class="section-t">⚙️ AI 模型（参考答案生成 / 判卷）</div>
+  <div class="badges">
+    ${['cloud','local'].map(p=>`<button class="badge prov ${cfg.provider===p?'on':''}" onclick="setProvider('${p}')">
+      <span class="dot-st" id="dot-${p}"></span>${p==='cloud'?'☁️':'💻'} ${cfg[p].label}</button>`).join('')}
+    <button class="badge" onclick="toggleAiCfg()">✏️ 配置</button>
+    <span id="provHint" style="font-size:12.5px;color:var(--ink3);align-self:center"></span>
+  </div>
+  <div class="card" id="aiCfg" style="display:none;padding:18px;margin-top:10px">
+    ${['cloud','local'].map(p=>`
+      <div style="font-weight:800;margin:${p==='local'?'16px':'0'} 0 8px;font-size:14px">${p==='cloud'?'☁️':'💻'} ${esc(cfg[p].label||p)}</div>
+      <div class="cfg-grid">
+        <input class="cfg-in" id="cfg-${p}-base" value="${esc(cfg[p].base||'')}" placeholder="Base URL（OpenAI 兼容，如 https://api.deepseek.com/v1）">
+        <input class="cfg-in" id="cfg-${p}-model" value="${esc(cfg[p].model||'')}" placeholder="模型名">
+        <input class="cfg-in" id="cfg-${p}-key" type="password" autocomplete="off"
+          placeholder="${cfg[p].has_key ? 'API Key 已保存 '+cfg[p].key_hint+'（留空不变，输 __clear__ 清除）' : (cfg[p].fallback ? cfg[p].fallback+'（填写则覆盖）' : 'API Key（无鉴权可留空）')}">
+      </div>`).join('')}
+    <div style="display:flex;gap:12px;align-items:center;margin-top:14px">
+      <button class="btn solid" onclick="saveAiCfg()">保存配置</button>
+      <span id="cfgMsg" style="font-size:13px;color:var(--green);font-weight:700"></span>
+    </div>
+  </div>
+  <div class="section-t">🏅 成就 <span style="font-weight:600;color:var(--ink3);font-size:13px">${prog.badges.length}/${BADGES.length}</span></div>
+  <div class="badges">${BADGES.map(([id,name,desc])=>
+    `<div class="badge ${prog.badges.includes(id)?'':'locked'}" title="${desc}">${name}</div>`).join('')}</div>`;
+}
+const greeting = () => { const h = new Date().getHours();
+  return h<5?'夜深了，刷一组就睡':h<12?'早上好 ☀️':h<18?'下午好 🌤️':'晚上好 🌙'; };
+
+/* ================= 刷题 ================= */
+function startSession(mode){
+  const qs = mode==='reinforce' ? pickReinforce(10) : mode==='fav' ? pickFav(10)
+           : mode==='qa' ? pickQA(5) : pickNormal(10);
+  if(!qs.length) return;
+  session = {mode, qs, i:0, right:0, xp:0, combo:0, maxCombo:0, sel:new Set(),
+             done:false, newBadges:[], text:'', judging:false, ai:null};
+  go('quiz');
+}
+function quizView(){
+  const s = session, q = s.qs[s.i];
+  if(qtype(q) === 'qa') return qaQuizView(s, q);
+  const opts = Object.entries(q.options);
+  return `
+  ${quizHead(s)}
+  <div class="card qcard">
+    <button class="starbtn ${isFav(q.id)?'on':''}" title="${isFav(q.id)?'取消收藏':'收藏这道题'}" onclick="toggleFav('${q.id}')">${isFav(q.id)?'★':'☆'}</button>
+    <span class="qtype ${q.multi?'multi':''}">${q.multi?'多选题 · 选完点提交':'单选题'}</span>
+    <div class="stem">${esc(q.stem)}</div>
+    <div class="opts">${opts.map(([k,v])=>{
+      let cls = '', dis = s.done ? 'disabled' : '';
+      if(s.done){
+        if(q.answer.includes(k)) cls = 'right';
+        else if(s.sel.has(k)) cls = 'wrong';
+      } else if(s.sel.has(k)) cls = 'sel';
+      return `<button class="opt ${cls}" ${dis} onclick="choose('${k}')">
+        <span class="k">${k}</span><span>${esc(v)}</span></button>`;}).join('')}
+    </div>
+    ${q.multi && !s.done ? `<button class="btn solid wide" ${s.sel.size?'':'disabled'} onclick="submitMulti()">提交答案</button>` : ''}
+    ${s.done ? feedback(q) : ''}
+    ${s.done ? nextBtn(s) : ''}
+  </div>`;
+}
+function quizHead(s){
+  return `<div class="quiz-head">
+    <button class="quit" onclick="go('home')">✕ 退出</button>
+    <div class="qbar"><i style="width:${(s.i+(s.done?1:0))/s.qs.length*100}%"></i></div>
+    <div style="font-size:13px;font-weight:700;color:var(--ink2)">${s.i+1}/${s.qs.length}</div>
+    <div class="combo">${s.combo>=2?'🔥×'+s.combo:''}</div>
+  </div>`;
+}
+const nextBtn = s => `<button class="btn solid wide" onclick="nextQ()">${s.i+1 < s.qs.length ? '下一题 →' : '查看本组成绩 🏁'}</button>`;
+
+/* ---------- 问答题视图: 提交→先看参考答案→自选AI判卷 ---------- */
+function qaQuizView(s, q){
+  const ai = s.ai, ref = s.ref, busy = s.refLoading || s.judging;
+  const canJudge = ref && !ai && !s.judging && !s.done && (s.text||'').trim();
+  return `
+  ${quizHead(s)}
+  <div class="card qcard">
+    <button class="starbtn ${isFav(q.id)?'on':''}" title="${isFav(q.id)?'取消收藏':'收藏这道题'}" onclick="toggleFav('${q.id}')">${isFav(q.id)?'★':'☆'}</button>
+    <span class="qtype qa">问答题</span>
+    <div class="stem">${esc(q.stem)}</div>
+    ${(q.parts||[]).length ? `<div class="parts">${q.parts.map(p=>`<div>${esc(p)}</div>`).join('')}</div>` : ''}
+    <textarea class="qa-in" id="qaText" placeholder="凭记忆作答，可分点写（1）（2）（3）…"
+      oninput="session.text=this.value" ${busy||ref?'disabled':''}>${esc(s.text||'')}</textarea>
+    ${!ref && !s.refLoading ? `
+      <button class="btn solid wide" onclick="showAnswer(false)" ${(s.text||'').trim()?'':'disabled'}>提交，看参考答案 📖</button>
+      <button class="btn ghost wide" onclick="showAnswer(true)" style="margin-top:8px">不会，直接看答案</button>` : ''}
+    ${s.refLoading ? `<div class="judging"><span class="spin"></span>正在联网搜索并生成参考答案…（生成一次后会缓存，下次秒出）</div>` : ''}
+    ${ref ? refCard(ref) : ''}
+    ${canJudge ? `<button class="btn ghost wide" onclick="judgeQA()">🤖 让 AI 对照判卷（${cfg[cfg.provider].label}）</button>` : ''}
+    ${s.judging ? `<div class="judging"><span class="spin"></span>AI 正在对照批改你的回答…</div>` : ''}
+    ${ai ? aiCard(ai) : ''}
+    ${ref && !s.judging && !s.done ? `<div class="selfgrade">
+      <button class="btn okline ${ai&&ai.score>=60?'suggest':''}" onclick="finalize(true)">✓ 我答对了</button>
+      <button class="btn noline ${(ai&&!(ai.score>=60))||!(s.text||'').trim()?'suggest':''}" onclick="finalize(false)">✗ 没答对</button></div>` : ''}
+    ${s.done ? nextBtn(s) : ''}
+  </div>`;
+}
+function refCard(ref){
+  if(ref.error) return `<div class="exp no"><div class="h not">⚠️ 参考答案生成失败</div>
+    <div class="body">${esc(ref.error)}<br>可切换 AI 模型后重试，或直接自评。</div></div>`;
+  return `<div class="exp ok"><div class="h okt">📖 参考答案
+    <span style="font-weight:600;opacity:.7">${ref.ai_generated ? (ref.cached?'· AI 生成(已缓存)':'· AI 联网生成'+(ref.searched?'，检索 '+ref.searched+' 条资料':'')) : '· 题库自带'}</span></div>
+    <div class="body" style="white-space:pre-wrap">${esc(ref.text||'')}</div></div>`;
+}
+async function showAnswer(skip){
+  const s = session, q = s.qs[s.i];
+  if(skip) s.text = '';
+  if(!skip && !(s.text||'').trim()) return;
+  s.refLoading = true; render();
+  try{
+    const r = await (await fetch('/api/answer', {method:'POST',
+      body:JSON.stringify({id:q.id})})).json();
+    s.ref = r.ok ? {text:r.ref, cached:r.cached, ai_generated:r.ai_generated, searched:r.searched} : {error:r.error};
+  }catch(e){ s.ref = {error:''+e}; }
+  s.refLoading = false; render();
+}
+async function judgeQA(){
+  const s = session, q = s.qs[s.i];
+  s.judging = true; render();
+  try{
+    const r = await (await fetch('/api/judge', {method:'POST', body:JSON.stringify({
+      stem:q.stem, parts:q.parts||[], ref:(s.ref&&s.ref.text)||'',
+      user_answer:s.text.trim()})})).json();
+    s.ai = r.ok ? r : {error:r.error||'判卷失败'};
+  }catch(e){ s.ai = {error:''+e}; }
+  s.judging = false; render();
+}
+function aiCard(ai){
+  if(ai.error) return `<div class="exp no"><div class="h not">⚠️ AI 判卷不可用</div>
+    <div class="body">${esc(ai.error)}<br>请对照资料自评，点下方按钮记录对错。</div></div>`;
+  const cls = ai.verdict==='正确' ? ['ok','okt'] : ai.verdict==='错误' ? ['no','not'] : ['part','partt'];
+  return `<div class="exp ${cls[0]}">
+    <div class="h ${cls[1]}">🤖 AI 判卷：${esc(ai.verdict||'')} · ${ai.score!=null?ai.score+' 分':''}
+      <span style="font-weight:600;opacity:.7">${ai.searched?`· 已联网检索 ${ai.searched} 条资料`:'· 未联网，凭模型知识'}</span></div>
+    <div class="body" style="white-space:pre-wrap">${esc(ai.comment||'')}</div></div>`;
+}
+function feedback(q){
+  const ok = session.lastOk;
+  return `<div class="exp ${ok?'ok':'no'}">
+    <div class="h ${ok?'okt':'not'}">${ok?'✓ 回答正确':'✗ 回答错误'} ${ok&&session.combo>=2?`· 连击 ×${session.combo}`:''}</div>
+    <div class="ans">正确答案：${q.answer.join('')}</div>
+    <div class="body">${esc(q.explanation || '本题暂无解析')}</div></div>`;
+}
+function choose(k){
+  const s = session, q = s.qs[s.i];
+  if(s.done) return;
+  if(q.multi){ s.sel.has(k) ? s.sel.delete(k) : s.sel.add(k); render(); }
+  else { s.sel = new Set([k]); grade(); }
+}
+function submitMulti(){ if(session.sel.size) grade(); }
+function grade(){
+  const s = session, q = s.qs[s.i];
+  finalize(q.answer.length === s.sel.size && q.answer.every(a=>s.sel.has(a)));
+}
+function finalize(ok){
+  const s = session, q = s.qs[s.i];
+  const st = qstat(q.id); st.seen++;
+  touchStreak();
+  prog.totalAnswered++;
+  const d = prog.daily[todayStr()] = prog.daily[todayStr()] || {a:0,c:0};
+  d.a++;
+  if(ok){
+    st.right++; st.streak++;
+    prog.totalCorrect++; d.c++;
+    s.right++; s.combo++; s.maxCombo = Math.max(s.maxCombo, s.combo);
+    let gain = qtype(q)==='qa' ? 20 : q.multi ? 15 : 10;
+    if(s.combo >= 5) gain *= 2;
+    prog.xp += gain; s.xp += gain;
+    floatXp('+'+gain+' XP');
+  } else {
+    st.wrong++; st.streak = 0;
+    s.combo = 0;
+    prog.xp += 2; s.xp += 2;   // 参与分
+  }
+  if(qtype(q)==='qa'){   // 留档供错题本/收藏夹复习
+    st.lastAns = (s.text||'').slice(0,500);
+    if(s.ai && s.ai.comment) st.ai = s.ai.comment.slice(0,1200);
+  }
+  const extra = [];
+  if(s.combo >= 5)  extra.push('combo5');
+  if(s.combo >= 10) extra.push('combo10');
+  s.newBadges.push(...checkBadges(extra));
+  s.done = true; s.lastOk = ok;
+  persist(); render();
+}
+function nextQ(){
+  const s = session;
+  if(s.i+1 < s.qs.length){ s.i++; s.sel = new Set(); s.done = false;
+    s.text = ''; s.judging = false; s.ai = null; s.ref = null; s.refLoading = false; render(); }
+  else {
+    if(s.right === s.qs.length && s.qs.length >= 5) s.newBadges.push(...checkBadges(['ten']));
+    s.newBadges.push(...checkBadges());
+    persist(); go('summary');
+    if(s.right/s.qs.length >= .8 || s.newBadges.length) confetti();
+  }
+}
+function summaryView(){
+  const s = session, acc = Math.round(s.right/s.qs.length*100);
+  return `<div class="card sum">
+    <div style="font-size:42px">${acc===100?'🏆':acc>=80?'🎉':acc>=60?'💪':'📖'}</div>
+    <div class="big">${acc}%</div>
+    <div style="color:var(--ink2);font-weight:600">${s.mode==='reinforce'?'错题强化':s.mode==='fav'?'收藏练习':s.mode==='qa'?'问答抽查':'常规练习'} · ${acc===100?'完美一组！':acc>=80?'非常棒！':'错题已记入错题本'}</div>
+    <div class="row">
+      <div class="cell"><div class="n" style="color:var(--green)">${s.right}</div><div class="l">答对</div></div>
+      <div class="cell"><div class="n" style="color:var(--red)">${s.qs.length-s.right}</div><div class="l">答错</div></div>
+      <div class="cell"><div class="n" style="color:var(--accent)">+${s.xp}</div><div class="l">获得 XP</div></div>
+      <div class="cell"><div class="n" style="color:var(--amber)">×${s.maxCombo}</div><div class="l">最高连击</div></div>
+    </div>
+    ${s.newBadges.length?`<div style="margin-bottom:14px">${s.newBadges.map(b=>`<span class="newbadge">🎖 解锁 ${b}</span>`).join('')}</div>`:''}
+    <button class="btn solid" onclick="startSession('${s.mode}')">再来一组</button>
+    <button class="btn ghost" onclick="go('home')" style="margin-left:8px">回到首页</button>
+  </div>`;
+}
+
+/* ================= 错题本 ================= */
+function wrongView(){
+  const wl = wrongList().sort((a,b)=>qstat(b.id).wrong - qstat(a.id).wrong);
+  const pending = reviewPool().length;
+  return `<h1>📕 错题本</h1>
+  <div class="sub">${wl.length?`共 ${wl.length} 道错题，${pending} 道待强化。连续答对 2 次即标记为已掌握。`:'还没有错题，保持住！'}</div>
+  ${pending?`<button class="btn solid" onclick="startSession('reinforce')" style="margin-bottom:18px">♻ 开始强化训练（${Math.min(pending,10)} 题）</button>`:''}
+  ${wl.length ? wl.map(q=>{
+    const st = qstat(q.id), m = qMastered(q.id);
+    return qItem(q, `<span class="tag ${m?'ok':'err'}">${m?'已掌握':'错 '+st.wrong+' 次'}</span>`);
+  }).join('') : '<div class="card empty">🎉 错题本是空的</div>'}
+  <a class="back" onclick="go('home')">← 返回首页</a>`;
+}
+/* 错题本/收藏夹共用的题目卡片(可展开,带收藏星) */
+function qItem(q, tagHtml){
+  const st = qstat(q.id);
+  return `<div class="card witem">
+    <div class="top" onclick="toggleW(this)">
+      ${tagHtml}
+      <span class="stem2">${esc(q.stem)}</span>
+      <button class="star-sm ${isFav(q.id)?'on':''}" title="${isFav(q.id)?'取消收藏':'收藏'}"
+        onclick="event.stopPropagation();toggleFav('${q.id}')">${isFav(q.id)?'★':'☆'}</button>
+      <span style="color:var(--ink3)">▾</span></div>
+    <div class="wdetail" style="display:none">
+      ${qtype(q)==='qa' ? `
+        ${(q.parts||[]).map(p=>`<div>${esc(p)}</div>`).join('')}
+        ${st.lastAns?`<div style="margin-top:8px"><b>我的上次作答：</b>${esc(st.lastAns)}</div>`:''}
+        <div style="margin-top:8px;white-space:pre-wrap"><b>🤖 AI 点评：</b>${esc(st.ai||'尚未判过卷')}</div>`
+      : `${Object.entries(q.options).map(([k,v])=>`<div>${q.answer.includes(k)?'<b>✓ '+k+'. '+esc(v)+'</b>':k+'. '+esc(v)}</div>`).join('')}
+        <div style="margin-top:8px"><b>解析：</b>${esc(q.explanation||'无')}</div>`}
+      <div style="margin-top:6px;color:var(--ink3)">作答 ${st.seen} 次 · 对 ${st.right} · 错 ${st.wrong} · 当前连对 ${st.streak}</div>
+    </div></div>`;
+}
+function toggleW(el){ const d = el.parentNode.querySelector('.wdetail');
+  d.style.display = d.style.display==='none' ? 'block' : 'none'; }
+
+/* ================= 收藏夹 ================= */
+function favView(){
+  const fl = favList();
+  const acc = id => { const s = prog.q[id]; return s && s.seen ? Math.round(s.right/s.seen*100)+'%' : '未刷'; };
+  return `<h1>⭐ 收藏夹</h1>
+  <div class="sub">${fl.length?`共 ${fl.length} 道收藏。觉得"这次对了下次不一定"的题都放这，随时回炉。`:'还没有收藏。答题时点题卡右上角的 ☆ 即可收藏。'}</div>
+  ${fl.length?`<button class="btn solid" onclick="startSession('fav')" style="margin-bottom:18px">▶ 练收藏（${Math.min(fl.length,10)} 题）</button>`:''}
+  ${fl.map(q=>qItem(q, `<span class="tag ${(prog.q[q.id]||{}).wrong?'err':'ok'}">正确率 ${acc(q.id)}</span>`)).join('')}
+  <a class="back" onclick="go('home')">← 返回首页</a>`;
+}
+
+/* ================= 导入 ================= */
+function importView(){
+  return `<h1>📥 导入资料</h1>
+  <div class="sub">上传含答案的 docx 文档，自动解析为题目进入题库（按题干去重，重复导入会更新旧题）。</div>
+  <div class="drop" id="drop" onclick="$('file').click()">
+    <div class="big-ico">📄</div>
+    <div style="font-weight:800;color:var(--ink)">点击选择或拖入 .docx 文件</div>
+    <div style="font-size:13px;margin-top:4px">支持多个文件同时导入</div>
+    <input type="file" id="file" accept=".docx" multiple hidden onchange="doImport(this.files)">
+  </div>
+  <div class="flist" id="flist"></div>
+  <div class="hint"><b>支持的格式</b>（和你的"答案文档"一样即可）：<br>
+  1. 题干以「数字.」开头；选项以「A.」「B.」…开头（有 E 选项自动按答案判断单/多选）<br>
+  2. 答案行写「【答案】C」或「【答案】ABCD」；解析行写「【解析】…」<br>
+  3. 只发"题目文档"没有【答案】的题会被跳过——请导入带答案的版本</div>
+  <a class="back" onclick="go('home')">← 返回首页</a>`;
+}
+async function doImport(files){
+  const list = $('flist');
+  for(const f of files){
+    const row = document.createElement('div');
+    row.className = 'card fitem'; row.textContent = '⏳ ' + f.name + ' 解析中…';
+    list.appendChild(row);
+    try{
+      const r = await (await fetch('/api/import', {method:'POST', body:f,
+        headers:{'X-Filename': encodeURIComponent(f.name)}})).json();
+      row.innerHTML = r.ok
+        ? `<span class="ok">✓</span> ${esc(f.name)} — 解析 ${r.parsed} 题，<b>新增 ${r.added}</b>，更新 ${r.updated}，题库共 ${r.total} 题`
+        : `<span class="err">✗</span> ${esc(f.name)} — ${esc(r.error||'解析失败')}`;
+    }catch(e){ row.innerHTML = `<span class="err">✗</span> ${esc(f.name)} — ${e}`; }
+  }
+  bank = await (await fetch('/api/bank')).json();
+  checkBadges(); persist();
+}
+async function loadAiStatus(){
+  try{
+    const st = await (await fetch('/api/aistatus')).json();
+    for(const p of ['cloud','local']){
+      const d = $('dot-'+p);
+      if(d) d.className = 'dot-st ' + (st[p] ? 'up' : 'down');
+    }
+    const hint = $('provHint');
+    if(hint && !st[cfg.provider])
+      hint.textContent = cfg.provider==='local'
+        ? '本地模型未启动：运行 ~/shuati/start_local_llm.sh'
+        : '云端不可用，检查 codex-bridge 服务';
+  }catch(e){}
+}
+function afterRender(){
+  if(view === 'home') loadAiStatus();
+  const drop = $('drop');
+  if(!drop) return;
+  ['dragover','dragenter'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('over')}));
+  ['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('over')}));
+  drop.addEventListener('drop', ev=>doImport(ev.dataTransfer.files));
+}
+
+/* ================= 特效 ================= */
+function floatXp(text){
+  const el = document.createElement('div');
+  el.className = 'xp-float'; el.textContent = text;
+  el.style.left = (innerWidth/2 - 30 + (Math.random()*60-30)) + 'px';
+  el.style.top = (innerHeight/2) + 'px';
+  document.body.appendChild(el); setTimeout(()=>el.remove(), 1000);
+}
+function confetti(){
+  const colors = ['#4F46E5','#7C3AED','#16A34A','#D97706','#DC2626','#0EA5E9'];
+  for(let i=0;i<60;i++){
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.background = colors[i%colors.length];
+    c.style.left = Math.random()*innerWidth + 'px';
+    c.style.top = '-12px';
+    c.style.borderRadius = Math.random()>.5 ? '50%' : '2px';
+    document.body.appendChild(c);
+    const fall = c.animate([
+      {transform:`translateY(0) rotate(0)`,opacity:1},
+      {transform:`translateY(${innerHeight+40}px) rotate(${Math.random()*720-360}deg)`,opacity:.7}
+    ], {duration:1800+Math.random()*1600, easing:'cubic-bezier(.2,.6,.4,1)'});
+    fall.onfinish = ()=>c.remove();
+  }
+}
+boot();
+</script>
+</body>
+</html>

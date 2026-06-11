@@ -1,0 +1,8 @@
+{
+ "provider": "cloud",
+ "cloud": {"base": "https://api.deepseek.com/v1", "model": "deepseek-chat",
+           "auth": "none", "label": "云端 DeepSeek", "api_key": ""},
+ "local": {"base": "http://127.0.0.1:8080/v1", "model": "local",
+           "auth": "none", "label": "本地模型", "api_key": ""},
+ "searx": ""
+}

@@ -1,0 +1,25 @@
+name: build-win
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pyinstaller python-docx
+      - run: pyinstaller --onefile --name ShuaTiYing --hidden-import docx --add-data "static;static" server.py
+      - name: package zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/ShuaTiYing/data | Out-Null
+          Copy-Item dist/ShuaTiYing.exe dist/ShuaTiYing/
+          Copy-Item data/bank.json dist/ShuaTiYing/data/
+          Copy-Item win/config.json dist/ShuaTiYing/data/config.json
+          Copy-Item win/使用说明.txt dist/ShuaTiYing/
+          Compress-Archive -Path dist/ShuaTiYing -DestinationPath ShuaTiYing-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShuaTiYing-Windows
+          path: ShuaTiYing-Windows.zip
