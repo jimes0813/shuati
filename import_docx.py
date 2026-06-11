@@ -5,7 +5,7 @@
 import re, json, sys, hashlib
 
 Q_RE = re.compile(r'^(\d{1,3})[.、．]\s*(.+)')
-OPT_RE = re.compile(r'^([A-H])[.、．]\s*(.+)')
+OPT_RE = re.compile(r'^([A-H])[.、．]?\s*(.+)')
 ANS_RE = re.compile(r'^(?:(\d{1,3})[.、．]?)?\s*【答案】\s*([A-H]+)')
 EXP_RE = re.compile(r'^(?:(\d{1,3})[.、．]?)?\s*【解析】\s*(.*)')
 PART_RE = re.compile(r'^[（(]\d{1,2}[）)]\s*(.+)')   # 问答题小问 （1）...
