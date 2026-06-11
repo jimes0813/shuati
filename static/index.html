@@ -378,9 +378,10 @@ const greeting = () => { const h = new Date().getHours();
 
 /* ================= 刷题 ================= */
 function startSession(mode){
+  if(!bank.length){ alert('题库为空，请先导入题目（首页 → 📥 导入资料）或检查 data/bank.json 是否存在'); return; }
   const qs = mode==='reinforce' ? pickReinforce(10) : mode==='fav' ? pickFav(10)
            : mode==='qa' ? pickQA(5) : pickNormal(10);
-  if(!qs.length) return;
+  if(!qs.length){ alert(mode==='qa'?'暂无问答题，请先导入问答资料':'暂无可用题目'); return; }
   session = {mode, qs, i:0, right:0, xp:0, combo:0, maxCombo:0, sel:new Set(),
              done:false, newBadges:[], text:'', judging:false, ai:null};
   go('quiz');
